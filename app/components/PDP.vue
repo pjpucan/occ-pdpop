@@ -2,6 +2,8 @@
 import { ref, computed, onMounted, reactive } from "vue";
 import * as XLSX from "xlsx";
 
+const isAdmin = useIsAdmin();
+
 const CATEGORY_ORDER = [
   "KIDS", "TWEENS", "YTH", "NXT", "SOLO", "SENIOR_ADULT",
   "YOUNG_COUPLES", "COUPLES", "LEGACY", "UNASSIGNED",
@@ -165,6 +167,8 @@ function exportToExcel() {
 const inputCls = "border border-stone-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-800/20";
 const btnPrimary = "bg-slate-800 text-stone-50 rounded-md px-4 py-2.5 text-sm font-medium hover:bg-slate-700";
 const btnSecondary = "bg-white text-slate-800 border border-stone-300 rounded-md px-4 py-2.5 text-sm font-medium hover:bg-stone-50";
+const btnEdit = "text-xs text-white bg-slate-800 hover:bg-slate-700 rounded px-2 py-1 ml-2.5";
+const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 py-1 ml-2.5";
 </script>
 
 <template>
@@ -290,8 +294,10 @@ const btnSecondary = "bg-white text-slate-800 border border-stone-300 rounded-md
                 <span v-else class="text-stone-300">Member</span>
               </td>
               <td class="p-2.5 text-right whitespace-nowrap">
-                <button class="text-xs text-slate-800 ml-2.5 hover:underline" @click="startEdit(m)">Edit</button>
-                <button class="text-xs text-orange-700 ml-2.5 hover:underline" @click="deleteMember(m)">Delete</button>
+                <template v-if="isAdmin">
+                  <button :class="btnEdit" @click="startEdit(m)">Edit</button>
+                  <button :class="btnDelete" @click="deleteMember(m)">Delete</button>
+                </template>
               </td>
             </tr>
             <tr v-else class="bg-stone-50">

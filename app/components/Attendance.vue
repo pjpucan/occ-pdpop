@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, reactive } from "vue";
 
+const isAdmin = useIsAdmin();
+
 const CATEGORY_LABELS = {
   KIDS: "Kids", TWEENS: "Tweens", YTH: "YTH", NXT: "NXT", SOLO: "Solo",
   SENIOR_ADULT: "Senior Adult", YOUNG_COUPLES: "Young Couples", COUPLES: "Couples",
@@ -10,6 +12,9 @@ const CATEGORY_LABELS = {
 const inputCls = "border border-stone-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-800/20";
 const btnPrimary = "bg-slate-800 text-stone-50 rounded-md px-4 py-2.5 text-sm font-medium hover:bg-slate-700";
 const btnSecondary = "bg-white text-slate-800 border border-stone-300 rounded-md px-4 py-2.5 text-sm font-medium hover:bg-stone-50";
+const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded px-2 py-1 ml-2.5";
+const btnEdit = "text-xs text-white bg-slate-800 hover:bg-slate-700 rounded px-2 py-1 ml-2.5";
+const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 py-1 ml-2.5";
 
 // --- event list ------------------------------------------------------------
 const events = ref([]);
@@ -362,11 +367,15 @@ function closeView() {
               </td>
               <td class="p-2.5">{{ e.presentCount }}</td>
               <td class="p-2.5 text-right whitespace-nowrap">
-                <button class="text-xs text-slate-800 ml-2.5 hover:underline" @click="openView(e.id)">View</button>
-                <button class="text-xs text-slate-800 ml-2.5 hover:underline" @click="openCheckIn(e.id)">
+                <button :class="btnView" @click="openView(e.id)">View</button>
+                <button
+                  v-if="isAdmin || e.presentCount === 0"
+                  :class="btnEdit"
+                  @click="openCheckIn(e.id)"
+                >
                   {{ e.presentCount > 0 ? "Edit" : "Take attendance" }}
                 </button>
-                <button class="text-xs text-orange-700 ml-2.5 hover:underline" @click="removeEvent(e)">Delete</button>
+                <button v-if="isAdmin" :class="btnDelete" @click="removeEvent(e)">Delete</button>
               </td>
             </tr>
             <tr v-if="!loadingEvents && filteredEvents.length === 0">

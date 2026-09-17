@@ -1,5 +1,6 @@
 import { prisma } from "~~/server/utils/prisma";
 import { PREACHER_OPTIONS } from "~~/server/utils/preacher";
+import { getSessionRole } from "~~/server/utils/auth";
 
 // Body: { presentMemberIds: string[], facilitatorId?, coFacilitatorId?,
 // preacherName?, topic? } — the full set of members checked in for this
@@ -18,6 +19,15 @@ export default defineEventHandler(async (event) => {
   }
   if (body.preacherName && !PREACHER_OPTIONS.includes(body.preacherName)) {
     throw createError({ statusCode: 400, statusMessage: "Unrecognized preacher." });
+  }
+
+  // Non-admins can take attendance for the first time, but not edit an
+  // event that already has recorded attendance.
+  if (getSessionRole(event) !== "admin") {
+    const existing = await prisma.attendance.count({ where: { eventId: id } });
+    if (existing > 0) {
+      throw createError({ statusCode: 403, statusMessage: "Admins only." });
+    }
   }
 
   // Nobody present means the event didn't happen (or was a mistaken
