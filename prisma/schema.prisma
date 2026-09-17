@@ -1,0 +1,128 @@
+// PDP — Church Population Database
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Category {
+  KIDS
+  TWEENS
+  YTH
+  NXT
+  SOLO
+  SENIOR_ADULT
+  YOUNG_COUPLES
+  COUPLES
+  LEGACY
+  UNASSIGNED
+}
+
+enum LeaderStatus {
+  NONE
+  POTENTIAL
+  ACTIVE
+}
+
+enum EventType {
+  SERVICE
+  BIBLE_STUDY
+}
+
+enum Session {
+  MORNING
+  AFTERNOON
+}
+
+enum BibleStudyRole {
+  FACILITATOR
+  CO_FACILITATOR
+}
+
+model Member {
+  id               String        @id @default(cuid())
+  firstName        String
+  lastName         String
+  category         Category
+  leaderStatus     LeaderStatus  @default(NONE)
+  leaderName       String?
+  isVisitor        Boolean       @default(false)
+  visitorNote      String?
+  birthday         DateTime?
+  joinedAt         DateTime      @default(now())
+
+  // onDelete: Cascade so removing a member cleans up their
+  // Bible study membership, volunteer record, and attendance history
+  // in the same transaction — no orphaned rows to clean up by hand.
+  bibleStudy       BibleStudyMembership?
+  volunteer        VolunteerRecord?
+  attendances      Attendance[]
+
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([category])
+  @@index([lastName, firstName])
+}
+
+model BibleStudyGroup {
+  id          String                  @id @default(cuid())
+  name        String                  @unique
+  leaderName  String?
+  schedule    String?
+  members     BibleStudyMembership[]
+}
+
+model BibleStudyMembership {
+  id        String          @id @default(cuid())
+  member    Member          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId  String          @unique
+  group     BibleStudyGroup @relation(fields: [groupId], references: [id])
+  groupId   String
+  joinedAt  DateTime        @default(now())
+}
+
+model VolunteerRecord {
+  id           String   @id @default(cuid())
+  member       Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId     String   @unique
+  ministry     String?
+  isActive     Boolean  @default(true)
+  notes        String?
+}
+
+model Event {
+  id           String        @id @default(cuid())
+  name         String
+  date         DateTime
+  type         EventType     @default(SERVICE)
+  // Only meaningful for SERVICE events — Bible studies aren't tagged AM/PM.
+  session      Session?
+  // SERVICE-only: who preached, the sermon/topic, and its key verses.
+  preacherName String?
+  topic        String?
+  keyVerses    String[]      @default([])
+  attendances  Attendance[]
+
+  @@index([date])
+  @@index([type])
+}
+
+model Attendance {
+  id        String   @id @default(cuid())
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId  String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId   String
+  present   Boolean  @default(true)
+  // BIBLE_STUDY-only: this attendee's role at that session, if any.
+  role      BibleStudyRole?
+
+  @@unique([memberId, eventId])
+}
