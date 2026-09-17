@@ -17,6 +17,10 @@ logs
 .DS_Store
 .fleet
 .idea
+.vscode
+
+# Vercel
+.vercel
 
 # Local env files
 .env
