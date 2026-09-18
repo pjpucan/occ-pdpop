@@ -15,6 +15,10 @@ export default defineEventHandler(async (event) => {
       leaderStatus: body.activeLeader ? "ACTIVE" : body.potentialLeader ? "POTENTIAL" : "NONE",
       leaderName: body.activeLeader || body.potentialLeader || null,
       isVisitor: !!body.isVisitor,
+      guestType: body.isVisitor ? body.guestType || "MEMBER" : null,
+      isFirstTimer: !!body.isFirstTimer,
+      isWalkIn: !!body.isFirstTimer && !!body.isWalkIn,
+      invitedByName: body.isFirstTimer && !body.isWalkIn ? body.invitedByName || null : null,
       birthday: body.birthday ? new Date(body.birthday) : null,
       ...(body.bibleStudyGroup && {
         bibleStudy: {

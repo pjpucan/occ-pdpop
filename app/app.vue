@@ -2,6 +2,7 @@
 const links = [
   { to: "/", label: "Members" },
   { to: "/attendance", label: "Attendance" },
+  { to: "/bible-study", label: "Bible Study" },
   { to: "/reports", label: "Reports" },
 ];
 
@@ -25,7 +26,7 @@ async function logout() {
   <div>
     <NuxtRouteAnnouncer />
     <nav v-if="route.path !== '/login'" class="bg-white border-b border-stone-200 px-6">
-      <div class="max-w-[1080px] mx-auto flex gap-5 items-center">
+      <div class="max-w-[1080px] mx-auto flex gap-5 items-center w-full">
         <NuxtLink
           v-for="link in links"
           :key="link.to"
