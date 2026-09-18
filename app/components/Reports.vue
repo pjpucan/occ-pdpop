@@ -40,6 +40,21 @@ const categoryRows = computed(() => {
     .filter((c) => report.value.services.byCategory[c])
     .map((c) => ({ code: c, label: CATEGORY_LABELS[c], count: report.value.services.byCategory[c] }));
 });
+
+// --- view members modal ------------------------------------------------------------
+const viewingCategory = ref(null);
+const viewingMembers = computed(() => {
+  if (!viewingCategory.value || !report.value) return [];
+  return report.value.services.byCategoryMembers[viewingCategory.value.code] || [];
+});
+function openView(row) {
+  viewingCategory.value = row;
+}
+function closeView() {
+  viewingCategory.value = null;
+}
+
+const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded px-2 py-1";
 </script>
 
 <template>
@@ -114,20 +129,55 @@ const categoryRows = computed(() => {
           <thead>
             <tr class="text-left text-xs text-stone-400">
               <th class="p-2.5 font-medium">Category</th>
-              <th class="p-2.5 font-medium">Attended</th>
+              <th class="p-2.5 font-medium text-center">Attended</th>
+              <th class="p-2.5 font-medium text-center">Action</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="row in categoryRows" :key="row.code" class="border-t border-stone-100">
               <td class="p-2.5">{{ row.label }}</td>
-              <td class="p-2.5">{{ row.count }}</td>
+              <td class="p-2.5 text-center">{{ row.count }}</td>
+              <td class="p-2.5 text-center">
+                <button :class="btnView" @click="openView(row)">View</button>
+              </td>
             </tr>
             <tr v-if="categoryRows.length === 0">
-              <td colspan="2" class="text-center py-7 text-stone-400">No service attendance recorded this month.</td>
+              <td colspan="3" class="text-center py-7 text-stone-400">No service attendance recorded this month.</td>
             </tr>
           </tbody>
         </table>
       </div>
     </template>
+
+    <!-- View members modal -->
+    <div v-if="viewingCategory" class="fixed inset-0 bg-slate-900/40 flex items-center justify-center p-4 z-20" @click.self="closeView">
+      <div class="bg-white rounded-lg max-w-lg w-full max-h-[85vh] overflow-y-auto p-5">
+        <div class="flex justify-between items-start mb-3.5">
+          <h2 class="font-serif text-xl text-slate-800">{{ viewingCategory.label }}</h2>
+          <button class="text-stone-400 hover:text-slate-800 text-sm" @click="closeView">Close</button>
+        </div>
+
+        <p class="text-xs text-stone-400 font-medium mb-1.5">Attended ({{ viewingMembers.length }})</p>
+        <div class="border border-stone-200 rounded-lg max-h-96 overflow-y-auto">
+          <table class="w-full border-collapse text-sm">
+            <thead>
+              <tr class="text-left text-xs text-stone-400">
+                <th class="p-2 font-medium">Name</th>
+                <th class="p-2 font-medium text-center">Times attended</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="m in viewingMembers" :key="m.id" class="border-t border-stone-100 first:border-t-0">
+                <td class="p-2">{{ m.first }} {{ m.last }}</td>
+                <td class="p-2 text-center">{{ m.count }}</td>
+              </tr>
+              <tr v-if="viewingMembers.length === 0">
+                <td colspan="2" class="text-center py-5 text-stone-400">No members recorded.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

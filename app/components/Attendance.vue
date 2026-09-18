@@ -358,7 +358,7 @@ function closeView() {
               <th class="p-2.5 font-medium">Event</th>
               <th class="p-2.5 font-medium">Session</th>
               <th class="p-2.5 font-medium">Present</th>
-              <th class="p-2.5"></th>
+              <th class="p-2.5 font-medium text-center">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -369,7 +369,7 @@ function closeView() {
                 {{ e.type === "BIBLE_STUDY" ? "—" : (e.session === "AFTERNOON" ? "Afternoon" : "Morning") }}
               </td>
               <td class="p-2.5">{{ e.presentCount }}</td>
-              <td class="p-2.5 text-right whitespace-nowrap">
+              <td class="p-2.5 text-center whitespace-nowrap">
                 <button :class="btnView" @click="openView(e.id)">View</button>
                 <button
                   v-if="isAdmin || e.presentCount === 0"
