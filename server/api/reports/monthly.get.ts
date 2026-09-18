@@ -23,6 +23,7 @@ export default defineEventHandler(async (event) => {
 
   const bySession = { MORNING: 0, AFTERNOON: 0 };
   const byCategory: Record<string, number> = {};
+  const byCategoryMembers: Record<string, Map<string, { id: string; first: string; last: string; count: number }>> = {};
   const byDate: Record<string, { morning: number; afternoon: number }> = {};
   let totalAttended = 0;
 
@@ -35,6 +36,14 @@ export default defineEventHandler(async (event) => {
       if (e.session === "MORNING") byDate[dateKey].morning++;
       if (e.session === "AFTERNOON") byDate[dateKey].afternoon++;
       byCategory[a.member.category] = (byCategory[a.member.category] ?? 0) + 1;
+      byCategoryMembers[a.member.category] ??= new Map();
+      const existing = byCategoryMembers[a.member.category].get(a.member.id);
+      byCategoryMembers[a.member.category].set(a.member.id, {
+        id: a.member.id,
+        first: a.member.firstName,
+        last: a.member.lastName,
+        count: (existing?.count ?? 0) + 1,
+      });
     }
   }
 
@@ -51,6 +60,9 @@ export default defineEventHandler(async (event) => {
       totalAttended,
       bySession,
       byCategory,
+      byCategoryMembers: Object.fromEntries(
+        Object.entries(byCategoryMembers).map(([category, members]) => [category, [...members.values()]])
+      ),
       byWeek,
     },
     bibleStudy: {

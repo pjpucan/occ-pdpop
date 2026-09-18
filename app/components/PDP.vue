@@ -377,10 +377,10 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
         <option value="Guest">Guest</option>
         <option value="Member">Member</option>
       </select>
-      <button v-if="hasFilters" class="text-orange-700 text-sm hover:underline" @click="clearFilters">
-        Clear filters
-      </button>
-      <span class="ml-auto text-sm text-stone-400">
+      <span class="ml-auto flex items-center text-sm text-stone-400 flex flex-col w-[135px]">
+        <button v-if="hasFilters" class="text-orange-700 hover:underline" @click="clearFilters">
+          Clear filters
+        </button>
         {{ loading ? "Loading…" : `${filtered.length} of ${members.length} members` }}
       </span>
     </div>
@@ -414,10 +414,13 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
                 <button
                   v-if="m.bibleStudyGroup"
                   type="button"
-                  class="text-emerald-700 font-medium"
+                  class="inline-flex items-center gap-1 text-emerald-700 font-medium"
                   @click.stop="toggleLeaderTooltip(m, $event)"
                 >
                   Yes
+                  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="currentColor" class="bi bi-info-circle-fill" viewBox="0 0 16 16">
+                    <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.469l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2"/>
+                  </svg>
                 </button>
                 <span v-else class="text-stone-300">—</span>
               </td>
@@ -429,7 +432,7 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
                 <span v-if="m.isVisitor" class="text-xs font-medium bg-orange-50 text-orange-700 rounded-full px-2 py-0.5">Guest</span>
                 <span v-else class="text-stone-300">Member</span>
               </td>
-              <td class="p-2.5 text-right whitespace-nowrap">
+              <td class="p-2.5 text-center whitespace-nowrap">
                 <template v-if="isAdmin">
                   <button :class="btnEdit" @click="startEdit(m)">Edit</button>
                   <button :class="btnDelete" @click="deleteMember(m)">Delete</button>
@@ -513,10 +516,13 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
     <Teleport to="body">
       <div
         v-if="leaderTooltip"
-        class="fixed z-50 -translate-y-full whitespace-nowrap bg-slate-800 text-white text-xs rounded px-2 py-1"
+        class="fixed z-50 -translate-y-full whitespace-nowrap flex flex-col items-center"
         :style="{ left: `${leaderTooltip.x}px`, top: `${leaderTooltip.y}px` }"
       >
-        Leader: {{ leaderTooltip.name }}
+        <div class="bg-slate-900 text-white text-xs font-bold rounded-lg px-3 py-2">
+          Leader: {{ leaderTooltip.name }}
+        </div>
+        <div class="w-2.5 h-2.5 bg-slate-900 rotate-45 -mt-1.5"></div>
       </div>
     </Teleport>
   </div>
