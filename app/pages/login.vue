@@ -27,7 +27,7 @@ async function submit() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-stone-50 flex items-center justify-center px-6">
+  <div class="min-h-screen bg-stone-50 flex justify-center px-6 pt-[50px]">
     <form class="w-full max-w-sm bg-white border border-stone-200 rounded-lg p-6 font-sans" @submit.prevent="submit">
       <p class="text-xs tracking-wide text-stone-400 font-medium mb-1">Oaks Community Church</p>
       <h1 class="font-serif text-2xl text-slate-800 mb-5">PDPop Database</h1>

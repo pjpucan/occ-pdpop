@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   const [eventRecord, members] = await Promise.all([
     prisma.event.findUniqueOrThrow({ where: { id } }),
     prisma.member.findMany({
-      include: { attendances: { where: { eventId: id } } },
+      include: { attendances: { where: { eventId: id } }, volunteer: true },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
   ]);
@@ -25,6 +25,7 @@ export default defineEventHandler(async (event) => {
       category: m.category,
       present: m.attendances[0]?.present ?? false,
       role: m.attendances[0]?.role ?? null,
+      ministry: m.volunteer?.ministry ?? null,
     })),
   };
 });

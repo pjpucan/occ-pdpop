@@ -94,6 +94,10 @@ const filteredRoster = computed(() => roster.value.filter((m) => {
 
 const presentCount = computed(() => roster.value.filter((m) => m.present).length);
 
+// Facilitator/Co-Facilitator are picked from members serving a ministry,
+// not the whole 138-person roster.
+const ministryMembers = computed(() => roster.value.filter((m) => m.ministry));
+
 async function startDraft() {
   startingDraft.value = true;
   checkInMode.value = "draft";
@@ -114,7 +118,7 @@ async function startDraft() {
   loadingRoster.value = true;
   try {
     const members = await $fetch("/api/members");
-    roster.value = members.map((m) => ({ id: m.id, first: m.first, last: m.last, category: m.category, present: false }));
+    roster.value = members.map((m) => ({ id: m.id, first: m.first, last: m.last, category: m.category, ministry: m.ministry, present: false }));
   } finally {
     loadingRoster.value = false;
     startingDraft.value = false;
@@ -150,14 +154,14 @@ function closeCheckIn() {
 }
 
 function setFacilitator(id) {
-  facilitatorId.value = id;
-  if (coFacilitatorId.value === id) coFacilitatorId.value = null;
+  facilitatorId.value = id || null;
+  if (id && coFacilitatorId.value === id) coFacilitatorId.value = null;
   const m = roster.value.find((r) => r.id === id);
   if (m) m.present = true;
 }
 function setCoFacilitator(id) {
-  coFacilitatorId.value = id;
-  if (facilitatorId.value === id) facilitatorId.value = null;
+  coFacilitatorId.value = id || null;
+  if (id && facilitatorId.value === id) facilitatorId.value = null;
   const m = roster.value.find((r) => r.id === id);
   if (m) m.present = true;
 }
@@ -263,6 +267,20 @@ function closeView() {
           <input v-model="keyVersesInput" type="text" placeholder="e.g. John 3:16, Romans 8:28" :class="[inputCls, 'flex-1 min-w-[220px]']" />
         </div>
 
+        <div v-if="activeEvent.type === 'BIBLE_STUDY'" class="flex gap-2.5 flex-wrap items-center mb-3.5 bg-white border border-stone-200 rounded-lg p-3.5">
+          <label class="text-xs text-stone-400 font-medium">Facilitator</label>
+          <select :value="facilitatorId" :class="inputCls" @change="setFacilitator($event.target.value)">
+            <option value="">—</option>
+            <option v-for="m in ministryMembers" :key="m.id" :value="m.id">{{ m.first }} {{ m.last }} — {{ m.ministry }}</option>
+          </select>
+          <label class="text-xs text-stone-400 font-medium">Co-Facilitator</label>
+          <select :value="coFacilitatorId" :class="inputCls" @change="setCoFacilitator($event.target.value)">
+            <option value="">—</option>
+            <option v-for="m in ministryMembers" :key="m.id" :value="m.id">{{ m.first }} {{ m.last }} — {{ m.ministry }}</option>
+          </select>
+          <p v-if="ministryMembers.length === 0" class="text-xs text-orange-700 m-0">No members have a Ministry assigned yet.</p>
+        </div>
+
         <div class="flex gap-2.5 flex-wrap items-center mb-3.5">
           <input v-model="query" type="text" placeholder="Search by name" :class="[inputCls, 'flex-1 min-w-[180px]']" />
           <select v-model="category" :class="inputCls">
@@ -276,13 +294,6 @@ function closeView() {
 
         <div class="bg-white border border-stone-200 rounded-lg max-h-[480px] overflow-y-auto mb-3.5">
           <table class="w-full border-collapse text-sm">
-            <thead v-if="activeEvent.type === 'BIBLE_STUDY'">
-              <tr class="text-left text-xs text-stone-400">
-                <th class="p-2.5 font-medium" colspan="2"></th>
-                <th class="p-2.5 font-medium text-center">Facilitator</th>
-                <th class="p-2.5 font-medium text-center">Co-Facilitator</th>
-              </tr>
-            </thead>
             <tbody>
               <tr v-for="m in filteredRoster" :key="m.id" class="border-t border-stone-100 first:border-t-0">
                 <td class="p-2.5 w-10">
@@ -292,17 +303,9 @@ function closeView() {
                   {{ m.first }} {{ m.last }}
                   <span class="text-stone-400">— {{ CATEGORY_LABELS[m.category] }}</span>
                 </td>
-                <template v-if="activeEvent.type === 'BIBLE_STUDY'">
-                  <td class="p-2.5 text-center">
-                    <input type="radio" name="facilitator" :checked="facilitatorId === m.id" @change="setFacilitator(m.id)" />
-                  </td>
-                  <td class="p-2.5 text-center">
-                    <input type="radio" name="co-facilitator" :checked="coFacilitatorId === m.id" @change="setCoFacilitator(m.id)" />
-                  </td>
-                </template>
               </tr>
               <tr v-if="filteredRoster.length === 0">
-                <td :colspan="activeEvent.type === 'BIBLE_STUDY' ? 4 : 2" class="text-center py-7 text-stone-400">No members match these filters.</td>
+                <td colspan="2" class="text-center py-7 text-stone-400">No members match these filters.</td>
               </tr>
             </tbody>
           </table>

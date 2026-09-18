@@ -45,6 +45,14 @@ enum BibleStudyRole {
   CO_FACILITATOR
 }
 
+// Only meaningful when isVisitor is true — is this guest visiting the
+// main congregation, or only attending a Bible study?
+enum GuestType {
+  MEMBER
+  BIBLE_STUDY
+  VISITOR
+}
+
 model Member {
   id               String        @id @default(cuid())
   firstName        String
@@ -54,6 +62,10 @@ model Member {
   leaderName       String?
   isVisitor        Boolean       @default(false)
   visitorNote      String?
+  guestType        GuestType?
+  isFirstTimer     Boolean       @default(false)
+  invitedByName    String?
+  isWalkIn         Boolean       @default(false)
   birthday         DateTime?
   joinedAt         DateTime      @default(now())
 

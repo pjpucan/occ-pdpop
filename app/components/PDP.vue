@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, reactive } from "vue";
+import { ref, computed, onMounted, onUnmounted, reactive } from "vue";
 import * as XLSX from "xlsx";
 
 const isAdmin = useIsAdmin();
@@ -26,6 +26,22 @@ const CATEGORY_DOT = {
 const members = ref([]);
 const loading = ref(true);
 const errorMsg = ref("");
+const leaders = ref([]);
+
+// Teleported + fixed-position so it isn't clipped by the table's
+// overflow-y-auto scroll container.
+const leaderTooltip = ref(null);
+function toggleLeaderTooltip(m, event) {
+  if (leaderTooltip.value?.id === m.id) {
+    leaderTooltip.value = null;
+    return;
+  }
+  const rect = event.currentTarget.getBoundingClientRect();
+  leaderTooltip.value = { id: m.id, name: m.bibleStudyGroup, x: rect.left, y: rect.top - 4 };
+}
+function closeLeaderTooltip() {
+  leaderTooltip.value = null;
+}
 
 async function fetchMembers() {
   loading.value = true;
@@ -38,13 +54,39 @@ async function fetchMembers() {
     loading.value = false;
   }
 }
-onMounted(fetchMembers);
+async function fetchLeaders() {
+  leaders.value = await $fetch("/api/bible-study-groups");
+}
+onMounted(() => {
+  fetchMembers();
+  fetchLeaders();
+  window.addEventListener("click", closeLeaderTooltip);
+});
+onUnmounted(() => {
+  window.removeEventListener("click", closeLeaderTooltip);
+});
+
+// Ministry dropdown is sourced from whatever ministries are already in use —
+// "General" was retired and is deliberately excluded.
+const ministryOptions = computed(() => {
+  const set = new Set();
+  members.value.forEach((m) => { if (m.ministry && m.ministry !== "General") set.add(m.ministry); });
+  return [...set].sort();
+});
+const memberFullNames = computed(() => members.value.map((m) => `${m.first} ${m.last}`));
+// "Couples" and "NXT" are legacy topical group names from before groups were
+// tracked by leader — not people, so they're excluded from the leader search.
+const LEGACY_GROUP_NAMES = ["Couples", "NXT"];
+const leaderNames = computed(() => leaders.value
+  .map((g) => g.name)
+  .filter((name) => !LEGACY_GROUP_NAMES.includes(name)));
 
 // --- filters -----------------------------------------------------------
 const query = ref("");
 const category = ref("All");
 const bibleStudy = ref("All");
-const volunteerOnly = ref(false);
+const ministryFilter = ref("All");
+const guestFilter = ref("All");
 
 const categories = computed(() => {
   const present = new Set(members.value.map((m) => m.category));
@@ -57,7 +99,9 @@ const filtered = computed(() => members.value.filter((m) => {
   if (category.value !== "All" && m.category !== category.value) return false;
   if (bibleStudy.value === "In a group" && !m.bibleStudyGroup) return false;
   if (bibleStudy.value === "Not in a group" && m.bibleStudyGroup) return false;
-  if (volunteerOnly.value && !m.volunteer) return false;
+  if (ministryFilter.value !== "All" && m.ministry !== ministryFilter.value) return false;
+  if (guestFilter.value === "Guest" && !m.isVisitor) return false;
+  if (guestFilter.value === "Member" && m.isVisitor) return false;
   return true;
 }));
 
@@ -65,14 +109,16 @@ const stats = computed(() => ({
   total: members.value.length,
   regular: members.value.filter((m) => !m.isVisitor).length,
   inBibleStudy: members.value.filter((m) => m.bibleStudyGroup).length,
-  visitors: members.value.filter((m) => m.isVisitor).length,
+  guests: members.value.filter((m) => m.isVisitor).length,
 }));
 
 const hasFilters = computed(
-  () => query.value || category.value !== "All" || bibleStudy.value !== "All" || volunteerOnly.value
+  () => query.value || category.value !== "All" || bibleStudy.value !== "All"
+    || ministryFilter.value !== "All" || guestFilter.value !== "All"
 );
 function clearFilters() {
-  query.value = ""; category.value = "All"; bibleStudy.value = "All"; volunteerOnly.value = false;
+  query.value = ""; category.value = "All"; bibleStudy.value = "All";
+  ministryFilter.value = "All"; guestFilter.value = "All";
 }
 
 // --- add member ----------------------------------------------------------
@@ -83,9 +129,36 @@ const addError = ref("");
 function blankForm() {
   return {
     first: "", last: "", category: "KIDS", birthday: "",
-    bibleStudyGroup: "", volunteer: false, ministry: "",
-    isVisitor: false, activeLeader: "", potentialLeader: "",
+    inBibleStudy: false, bibleStudyGroup: "", volunteer: false, ministry: "",
+    isVisitor: false, guestType: "MEMBER",
+    isFirstTimer: false, isWalkIn: false, invitedByName: "",
+    activeLeader: "", potentialLeader: "",
   };
+}
+
+// A Bible-study-only guest doesn't need the full member profile.
+function isBibleStudyGuest(form) {
+  return form.isVisitor && form.guestType === "BIBLE_STUDY";
+}
+
+// Fields hidden for a Bible-study-only guest aren't meaningful, so they're
+// normalized before hitting the API rather than sent as whatever was left
+// over in the form.
+function buildPayload(form) {
+  const bsGuest = isBibleStudyGuest(form);
+  return {
+    ...form,
+    volunteer: bsGuest ? false : form.volunteer,
+    ministry: bsGuest ? "" : form.ministry,
+    bibleStudyGroup: (bsGuest || !form.inBibleStudy) ? "" : form.bibleStudyGroup,
+  };
+}
+
+function resetGuestFields(form) {
+  form.guestType = "MEMBER";
+  form.isFirstTimer = false;
+  form.isWalkIn = false;
+  form.invitedByName = "";
 }
 
 function formatBirthday(iso) {
@@ -100,7 +173,7 @@ async function submitAdd() {
   }
   addError.value = "";
   try {
-    await $fetch("/api/members", { method: "POST", body: addForm });
+    await $fetch("/api/members", { method: "POST", body: buildPayload(addForm) });
     Object.assign(addForm, blankForm());
     showAddForm.value = false;
     await fetchMembers();
@@ -118,8 +191,11 @@ function startEdit(m) {
   Object.assign(editForm, {
     first: m.first, last: m.last, category: m.category,
     birthday: m.birthday ? m.birthday.slice(0, 10) : "",
-    bibleStudyGroup: m.bibleStudyGroup || "", volunteer: m.volunteer, ministry: m.ministry || "",
-    isVisitor: m.isVisitor, activeLeader: m.activeLeader || "", potentialLeader: m.potentialLeader || "",
+    inBibleStudy: !!m.bibleStudyGroup, bibleStudyGroup: m.bibleStudyGroup || "",
+    volunteer: m.volunteer, ministry: m.ministry || "",
+    isVisitor: m.isVisitor, guestType: m.guestType || "MEMBER",
+    isFirstTimer: m.isFirstTimer || false, isWalkIn: m.isWalkIn || false, invitedByName: m.invitedByName || "",
+    activeLeader: m.activeLeader || "", potentialLeader: m.potentialLeader || "",
   });
 }
 function cancelEdit() {
@@ -127,7 +203,7 @@ function cancelEdit() {
 }
 async function saveEdit(id) {
   try {
-    await $fetch(`/api/members/${id}`, { method: "PATCH", body: editForm });
+    await $fetch(`/api/members/${id}`, { method: "PATCH", body: buildPayload(editForm) });
     editingId.value = null;
     await fetchMembers();
   } catch (e) {
@@ -154,7 +230,7 @@ function exportToExcel() {
     "Bible Study Group": m.bibleStudyGroup || "", Volunteer: m.volunteer ? "Yes" : "No",
     Ministry: m.ministry || "",
     "Leader Status": m.activeLeader ? `Active (${m.activeLeader})` : (m.potentialLeader ? `Potential (${m.potentialLeader})` : ""),
-    Visitor: m.isVisitor ? "Yes" : "No",
+    Guest: m.isVisitor ? "Yes" : "No",
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
   ws["!cols"] = [{wch:16},{wch:16},{wch:11},{wch:14},{wch:18},{wch:11},{wch:14},{wch:18},{wch:9}];
@@ -173,6 +249,13 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
 
 <template>
   <div class="font-sans text-stone-800">
+    <datalist id="member-names">
+      <option v-for="name in memberFullNames" :key="name" :value="name" />
+    </datalist>
+    <datalist id="leader-names">
+      <option v-for="name in leaderNames" :key="name" :value="name" />
+    </datalist>
+
     <header class="flex justify-between items-end flex-wrap gap-3.5 mb-4">
       <div>
         <p class="text-xs tracking-wide text-stone-400 font-medium mb-1">Oaks Community Church</p>
@@ -192,24 +275,64 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
       {{ errorMsg }}
     </p>
 
+    <!-- Field order below follows the table's column order: Name, Birthday,
+         Category, Bible study, Ministry, Guest -->
     <form v-if="showAddForm" class="flex flex-col gap-2.5 bg-white border border-stone-200 rounded-lg p-3.5 mb-4" @submit.prevent="submitAdd">
       <div class="flex gap-2.5 flex-wrap items-center">
         <input v-model="addForm.first" placeholder="First name" :class="inputCls" />
         <input v-model="addForm.last" placeholder="Last name" :class="inputCls" />
+        <input v-model="addForm.birthday" type="date" title="Birthday" :class="inputCls" />
         <select v-model="addForm.category" :class="inputCls">
           <option v-for="c in CATEGORY_ORDER" :key="c" :value="c">{{ CATEGORY_LABELS[c] }}</option>
         </select>
-        <input v-model="addForm.birthday" type="date" title="Birthday" :class="inputCls" />
       </div>
-      <div class="flex gap-2.5 flex-wrap items-center">
-        <input v-model="addForm.bibleStudyGroup" placeholder="Bible study group (optional)" :class="inputCls" />
+      <div v-if="!isBibleStudyGuest(addForm)" class="flex gap-2.5 flex-wrap items-center">
+        <label class="text-xs text-stone-400 font-medium">In Bible study?</label>
+        <select v-model="addForm.inBibleStudy" :class="inputCls">
+          <option :value="false">No</option>
+          <option :value="true">Yes</option>
+        </select>
+        <input
+          v-if="addForm.inBibleStudy"
+          v-model="addForm.bibleStudyGroup"
+          list="leader-names"
+          placeholder="Search leader…"
+          :class="[inputCls, 'flex-1 min-w-[180px]']"
+        />
         <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
           <input type="checkbox" v-model="addForm.volunteer" /> Volunteer
         </label>
-        <input v-model="addForm.ministry" placeholder="Ministry" :disabled="!addForm.volunteer" :class="[inputCls, 'disabled:bg-stone-100 disabled:text-stone-400']" />
+        <select v-model="addForm.ministry" :disabled="!addForm.volunteer" :class="[inputCls, 'disabled:bg-stone-100 disabled:text-stone-400']">
+          <option value="">Ministry</option>
+          <option v-for="m in ministryOptions" :key="m" :value="m">{{ m }}</option>
+        </select>
+      </div>
+      <div class="flex gap-2.5 flex-wrap items-center">
         <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
-          <input type="checkbox" v-model="addForm.isVisitor" /> Visitor
+          <input type="checkbox" v-model="addForm.isVisitor" @change="!addForm.isVisitor && resetGuestFields(addForm)" /> Guest
         </label>
+        <select v-if="addForm.isVisitor" v-model="addForm.guestType" :class="inputCls">
+          <option value="MEMBER">Member</option>
+          <option value="BIBLE_STUDY">Bible Study</option>
+          <option value="VISITOR">Visitor</option>
+        </select>
+        <template v-if="addForm.isVisitor">
+          <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
+            <input type="checkbox" v-model="addForm.isFirstTimer" /> First Timer
+          </label>
+          <template v-if="addForm.isFirstTimer">
+            <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
+              <input type="checkbox" v-model="addForm.isWalkIn" /> Walk-in
+            </label>
+            <input
+              v-if="!addForm.isWalkIn"
+              v-model="addForm.invitedByName"
+              list="member-names"
+              placeholder="Invited by…"
+              :class="[inputCls, 'flex-1 min-w-[180px]']"
+            />
+          </template>
+        </template>
       </div>
       <p v-if="addError" class="text-orange-700 text-sm m-0">{{ addError }}</p>
       <button type="submit" :class="[btnPrimary, 'self-start']">Save member</button>
@@ -229,25 +352,31 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
         <p class="font-serif text-2xl text-slate-800">{{ stats.inBibleStudy }}</p>
       </div>
       <div class="bg-white border border-stone-200 rounded-lg p-3.5">
-        <p class="text-xs text-stone-400 mb-1.5">Visitors</p>
-        <p class="font-serif text-2xl text-slate-800">{{ stats.visitors }}</p>
+        <p class="text-xs text-stone-400 mb-1.5">Guests</p>
+        <p class="font-serif text-2xl text-slate-800">{{ stats.guests }}</p>
       </div>
     </section>
 
     <div class="flex gap-2.5 flex-wrap items-center mb-3.5">
       <input v-model="query" type="text" placeholder="Search by name" :class="[inputCls, 'flex-1 min-w-[180px]']" />
       <select v-model="category" :class="inputCls">
-        <option>All</option>
+        <option value="All">Category</option>
         <option v-for="c in categories" :key="c" :value="c">{{ CATEGORY_LABELS[c] }}</option>
       </select>
       <select v-model="bibleStudy" :class="inputCls">
-        <option>All</option>
+        <option value="All">Bible study</option>
         <option>In a group</option>
         <option>Not in a group</option>
       </select>
-      <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
-        <input v-model="volunteerOnly" type="checkbox" /> Volunteers only
-      </label>
+      <select v-model="ministryFilter" :class="inputCls">
+        <option value="All">Ministry</option>
+        <option v-for="m in ministryOptions" :key="m" :value="m">{{ m }}</option>
+      </select>
+      <select v-model="guestFilter" :class="inputCls">
+        <option value="All">Guest</option>
+        <option value="Guest">Guest</option>
+        <option value="Member">Member</option>
+      </select>
       <button v-if="hasFilters" class="text-orange-700 text-sm hover:underline" @click="clearFilters">
         Clear filters
       </button>
@@ -265,8 +394,8 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
             <th class="p-2.5 font-medium">Category</th>
             <th class="p-2.5 font-medium">Bible study</th>
             <th class="p-2.5 font-medium">Ministry</th>
-            <th class="p-2.5 font-medium">Visitor</th>
-            <th class="p-2.5"></th>
+            <th class="p-2.5 font-medium">Guest</th>
+            <th class="p-2.5 font-medium text-center">Action</th>
           </tr>
         </thead>
         <tbody>
@@ -282,7 +411,14 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
                 {{ CATEGORY_LABELS[m.category] }}
               </td>
               <td class="p-2.5">
-                <span v-if="m.bibleStudyGroup" class="text-emerald-700">{{ m.bibleStudyGroup }}</span>
+                <button
+                  v-if="m.bibleStudyGroup"
+                  type="button"
+                  class="text-emerald-700 font-medium"
+                  @click.stop="toggleLeaderTooltip(m, $event)"
+                >
+                  Yes
+                </button>
                 <span v-else class="text-stone-300">—</span>
               </td>
               <td class="p-2.5">
@@ -290,7 +426,7 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
                 <span v-else class="text-stone-300">—</span>
               </td>
               <td class="p-2.5">
-                <span v-if="m.isVisitor" class="text-xs font-medium bg-orange-50 text-orange-700 rounded-full px-2 py-0.5">Visitor</span>
+                <span v-if="m.isVisitor" class="text-xs font-medium bg-orange-50 text-orange-700 rounded-full px-2 py-0.5">Guest</span>
                 <span v-else class="text-stone-300">Member</span>
               </td>
               <td class="p-2.5 text-right whitespace-nowrap">
@@ -302,23 +438,67 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
             </tr>
             <tr v-else class="bg-stone-50">
               <td colspan="7" class="p-2.5">
-                <div class="flex gap-2.5 flex-wrap items-center">
-                  <input v-model="editForm.first" placeholder="First name" :class="inputCls" />
-                  <input v-model="editForm.last" placeholder="Last name" :class="inputCls" />
-                  <select v-model="editForm.category" :class="inputCls">
-                    <option v-for="c in CATEGORY_ORDER" :key="c" :value="c">{{ CATEGORY_LABELS[c] }}</option>
-                  </select>
-                  <input v-model="editForm.birthday" type="date" title="Birthday" :class="inputCls" />
-                  <input v-model="editForm.bibleStudyGroup" placeholder="Bible study group" :class="inputCls" />
-                  <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
-                    <input type="checkbox" v-model="editForm.volunteer" /> Volunteer
-                  </label>
-                  <input v-model="editForm.ministry" placeholder="Ministry" :disabled="!editForm.volunteer" :class="[inputCls, 'disabled:bg-stone-100 disabled:text-stone-400']" />
-                  <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
-                    <input type="checkbox" v-model="editForm.isVisitor" /> Visitor
-                  </label>
-                  <button :class="btnPrimary" @click="saveEdit(m.id)">Save</button>
-                  <button :class="btnSecondary" @click="cancelEdit">Cancel</button>
+                <div class="flex flex-col gap-2.5">
+                  <div class="flex gap-2.5 flex-wrap items-center">
+                    <input v-model="editForm.first" placeholder="First name" :class="inputCls" />
+                    <input v-model="editForm.last" placeholder="Last name" :class="inputCls" />
+                    <input v-model="editForm.birthday" type="date" title="Birthday" :class="inputCls" />
+                    <select v-model="editForm.category" :class="inputCls">
+                      <option v-for="c in CATEGORY_ORDER" :key="c" :value="c">{{ CATEGORY_LABELS[c] }}</option>
+                    </select>
+                  </div>
+                  <div v-if="!isBibleStudyGuest(editForm)" class="flex gap-2.5 flex-wrap items-center">
+                    <label class="text-xs text-stone-400 font-medium">In Bible study?</label>
+                    <select v-model="editForm.inBibleStudy" :class="inputCls">
+                      <option :value="false">No</option>
+                      <option :value="true">Yes</option>
+                    </select>
+                    <input
+                      v-if="editForm.inBibleStudy"
+                      v-model="editForm.bibleStudyGroup"
+                      list="leader-names"
+                      placeholder="Search leader…"
+                      :class="[inputCls, 'flex-1 min-w-[180px]']"
+                    />
+                    <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
+                      <input type="checkbox" v-model="editForm.volunteer" /> Volunteer
+                    </label>
+                    <select v-model="editForm.ministry" :disabled="!editForm.volunteer" :class="[inputCls, 'disabled:bg-stone-100 disabled:text-stone-400']">
+                      <option value="">Ministry</option>
+                      <option v-for="mn in ministryOptions" :key="mn" :value="mn">{{ mn }}</option>
+                    </select>
+                  </div>
+                  <div class="flex gap-2.5 flex-wrap items-center">
+                    <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
+                      <input type="checkbox" v-model="editForm.isVisitor" @change="!editForm.isVisitor && resetGuestFields(editForm)" /> Guest
+                    </label>
+                    <select v-if="editForm.isVisitor" v-model="editForm.guestType" :class="inputCls">
+                      <option value="MEMBER">Member</option>
+                      <option value="BIBLE_STUDY">Bible Study</option>
+                      <option value="VISITOR">Visitor</option>
+                    </select>
+                    <template v-if="editForm.isVisitor">
+                      <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
+                        <input type="checkbox" v-model="editForm.isFirstTimer" /> First Timer
+                      </label>
+                      <template v-if="editForm.isFirstTimer">
+                        <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
+                          <input type="checkbox" v-model="editForm.isWalkIn" /> Walk-in
+                        </label>
+                        <input
+                          v-if="!editForm.isWalkIn"
+                          v-model="editForm.invitedByName"
+                          list="member-names"
+                          placeholder="Invited by…"
+                          :class="[inputCls, 'flex-1 min-w-[180px]']"
+                        />
+                      </template>
+                    </template>
+                  </div>
+                  <div class="flex gap-2.5">
+                    <button :class="btnPrimary" @click="saveEdit(m.id)">Save</button>
+                    <button :class="btnSecondary" @click="cancelEdit">Cancel</button>
+                  </div>
                 </div>
               </td>
             </tr>
@@ -329,5 +509,15 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
         </tbody>
       </table>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="leaderTooltip"
+        class="fixed z-50 -translate-y-full whitespace-nowrap bg-slate-800 text-white text-xs rounded px-2 py-1"
+        :style="{ left: `${leaderTooltip.x}px`, top: `${leaderTooltip.y}px` }"
+      >
+        Leader: {{ leaderTooltip.name }}
+      </div>
+    </Teleport>
   </div>
 </template>
