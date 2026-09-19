@@ -275,62 +275,94 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
       {{ errorMsg }}
     </p>
 
-    <!-- Field order below follows the table's column order: Name, Birthday,
-         Category, Bible study, Ministry, Guest -->
-    <form v-if="showAddForm" class="flex flex-col gap-2.5 bg-white border border-stone-200 rounded-lg p-3.5 mb-4" @submit.prevent="submitAdd">
-      <div class="flex gap-2.5 flex-wrap items-center">
-        <input v-model="addForm.first" placeholder="First name" :class="inputCls" />
-        <input v-model="addForm.last" placeholder="Last name" :class="inputCls" />
-        <input v-model="addForm.birthday" type="date" title="Birthday" :class="inputCls" />
-        <select v-model="addForm.category" :class="inputCls">
-          <option v-for="c in CATEGORY_ORDER" :key="c" :value="c">{{ CATEGORY_LABELS[c] }}</option>
-        </select>
-      </div>
-      <div v-if="!isBibleStudyGuest(addForm)" class="flex gap-2.5 flex-wrap items-center">
-        <label class="text-xs text-stone-400 font-medium">In Bible study?</label>
-        <select v-model="addForm.inBibleStudy" :class="inputCls">
-          <option :value="false">No</option>
-          <option :value="true">Yes</option>
-        </select>
-        <input
-          v-if="addForm.inBibleStudy"
-          v-model="addForm.bibleStudyGroup"
-          list="leader-names"
-          placeholder="Search leader…"
-          :class="[inputCls, 'flex-1 min-w-[180px]']"
-        />
-        <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
-          <input type="checkbox" v-model="addForm.volunteer" /> Volunteer
-        </label>
-        <select v-model="addForm.ministry" :disabled="!addForm.volunteer" :class="[inputCls, 'disabled:bg-stone-100 disabled:text-stone-400']">
-          <option value="">Ministry</option>
-          <option v-for="m in ministryOptions" :key="m" :value="m">{{ m }}</option>
-        </select>
-      </div>
-      <div class="flex gap-2.5 flex-wrap items-center">
-        <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
-          <input type="checkbox" v-model="addForm.isVisitor" @change="!addForm.isVisitor && resetGuestFields(addForm)" /> Guest
-        </label>
-        <select v-if="addForm.isVisitor" v-model="addForm.guestType" :class="inputCls">
-          <option value="MEMBER">Member</option>
-          <option value="BIBLE_STUDY">Bible Study</option>
-          <option value="VISITOR">Visitor</option>
-        </select>
-        <template v-if="addForm.isVisitor">
-          <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
-            <input type="checkbox" v-model="addForm.isFirstTimer" /> First Timer
-          </label>
-          <template v-if="addForm.isFirstTimer">
-            <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
-              <input type="checkbox" v-model="addForm.isWalkIn" /> Walk-in
-            </label>
+    <form v-if="showAddForm" class="flex flex-col gap-3.5 bg-white border border-stone-200 rounded-lg p-3.5 mb-4" @submit.prevent="submitAdd">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs text-stone-400 font-medium mb-1.5">First name</label>
+          <input v-model="addForm.first" :class="[inputCls, 'w-full']" />
+        </div>
+        <div>
+          <label class="block text-xs text-stone-400 font-medium mb-1.5">Last name</label>
+          <input v-model="addForm.last" :class="[inputCls, 'w-full']" />
+        </div>
+        <div>
+          <label class="block text-xs text-stone-400 font-medium mb-1.5">Birthday</label>
+          <input v-model="addForm.birthday" type="date" :class="[inputCls, 'w-full']" />
+        </div>
+        <div>
+          <label class="block text-xs text-stone-400 font-medium mb-1.5">Category</label>
+          <select v-model="addForm.category" :class="[inputCls, 'w-full']">
+            <option v-for="c in CATEGORY_ORDER" :key="c" :value="c">{{ CATEGORY_LABELS[c] }}</option>
+          </select>
+        </div>
+        <template v-if="!isBibleStudyGuest(addForm)">
+          <div>
+            <label class="block text-xs text-stone-400 font-medium mb-1.5">In Bible study?</label>
+            <select v-model="addForm.inBibleStudy" :class="[inputCls, 'w-full']">
+              <option :value="false">No</option>
+              <option :value="true">Yes</option>
+            </select>
+          </div>
+          <div v-if="addForm.inBibleStudy">
+            <label class="block text-xs text-stone-400 font-medium mb-1.5">Bible study leader</label>
             <input
-              v-if="!addForm.isWalkIn"
-              v-model="addForm.invitedByName"
-              list="member-names"
-              placeholder="Invited by…"
-              :class="[inputCls, 'flex-1 min-w-[180px]']"
+              v-model="addForm.bibleStudyGroup"
+              list="leader-names"
+              placeholder="Search leader…"
+              :class="[inputCls, 'w-full']"
             />
+          </div>
+          <div>
+            <label class="block text-xs text-stone-400 font-medium mb-1.5">Volunteer?</label>
+            <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
+              <input type="checkbox" v-model="addForm.volunteer" /> Volunteer
+            </label>
+          </div>
+          <div>
+            <label class="block text-xs text-stone-400 font-medium mb-1.5">Ministry</label>
+            <select v-model="addForm.ministry" :disabled="!addForm.volunteer" :class="[inputCls, 'w-full disabled:bg-stone-100 disabled:text-stone-400']">
+              <option value="">Ministry</option>
+              <option v-for="m in ministryOptions" :key="m" :value="m">{{ m }}</option>
+            </select>
+          </div>
+        </template>
+        <div>
+          <label class="block text-xs text-stone-400 font-medium mb-1.5">Guest?</label>
+          <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
+            <input type="checkbox" v-model="addForm.isVisitor" @change="!addForm.isVisitor && resetGuestFields(addForm)" /> Guest
+          </label>
+        </div>
+        <div v-if="addForm.isVisitor">
+          <label class="block text-xs text-stone-400 font-medium mb-1.5">Guest type</label>
+          <select v-model="addForm.guestType" :class="[inputCls, 'w-full']">
+            <option value="MEMBER">Member</option>
+            <option value="BIBLE_STUDY">Bible Study</option>
+            <option value="VISITOR">Visitor</option>
+          </select>
+        </div>
+        <template v-if="addForm.isVisitor">
+          <div>
+            <label class="block text-xs text-stone-400 font-medium mb-1.5">First timer?</label>
+            <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
+              <input type="checkbox" v-model="addForm.isFirstTimer" /> First Timer
+            </label>
+          </div>
+          <template v-if="addForm.isFirstTimer">
+            <div>
+              <label class="block text-xs text-stone-400 font-medium mb-1.5">Walk-in?</label>
+              <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
+                <input type="checkbox" v-model="addForm.isWalkIn" /> Walk-in
+              </label>
+            </div>
+            <div v-if="!addForm.isWalkIn">
+              <label class="block text-xs text-stone-400 font-medium mb-1.5">Invited by</label>
+              <input
+                v-model="addForm.invitedByName"
+                list="member-names"
+                placeholder="Invited by…"
+                :class="[inputCls, 'w-full']"
+              />
+            </div>
           </template>
         </template>
       </div>

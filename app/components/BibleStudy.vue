@@ -44,6 +44,15 @@ async function addLeader() {
   }
 }
 
+async function removeLeader(g) {
+  const warning = g.memberCount > 0
+    ? ` This will unassign ${g.memberCount} member(s) currently under this leader.`
+    : "";
+  if (!confirm(`Delete leader "${g.name}"?${warning}`)) return;
+  await $fetch(`/api/bible-study-groups/${g.id}`, { method: "DELETE" });
+  await fetchGroups();
+}
+
 // --- view members modal ------------------------------------------------------------
 const viewingGroup = ref(null);
 const groupMembers = computed(() => {
@@ -60,6 +69,7 @@ function closeView() {
 const inputCls = "border border-stone-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-800/20";
 const btnPrimary = "bg-slate-800 text-stone-50 rounded-md px-4 py-2.5 text-sm font-medium hover:bg-slate-700";
 const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded px-2 py-1";
+const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 py-1 ml-2.5";
 </script>
 
 <template>
@@ -90,6 +100,7 @@ const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded 
             <td class="p-2.5 text-center">{{ g.memberCount }}</td>
             <td class="p-2.5 text-center">
               <button :class="btnView" @click="openView(g)">View</button>
+              <button v-if="isAdmin" :class="btnDelete" @click="removeLeader(g)">Delete</button>
             </td>
           </tr>
           <tr v-if="!loading && groups.length === 0">

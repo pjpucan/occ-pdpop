@@ -3,6 +3,10 @@ import { ref, computed, onMounted, reactive } from "vue";
 
 const isAdmin = useIsAdmin();
 
+const CATEGORY_ORDER = [
+  "KIDS", "TWEENS", "YTH", "NXT", "SOLO", "SENIOR_ADULT",
+  "YOUNG_COUPLES", "COUPLES", "LEGACY", "UNASSIGNED",
+];
 const CATEGORY_LABELS = {
   KIDS: "Kids", TWEENS: "Tweens", YTH: "YTH", NXT: "NXT", SOLO: "Solo",
   SENIOR_ADULT: "Senior Adult", YOUNG_COUPLES: "Young Couples", COUPLES: "Couples",
@@ -25,7 +29,20 @@ async function fetchEvents() {
   events.value = await $fetch("/api/events");
   loadingEvents.value = false;
 }
-onMounted(fetchEvents);
+const leaders = ref([]);
+async function fetchLeaders() {
+  leaders.value = await $fetch("/api/bible-study-groups");
+}
+onMounted(() => {
+  fetchEvents();
+  fetchLeaders();
+});
+// "Couples" and "NXT" are legacy topical group names from before groups were
+// tracked by leader — not people, so they're excluded from the leader search.
+const LEGACY_GROUP_NAMES = ["Couples", "NXT"];
+const leaderNames = computed(() => leaders.value
+  .map((g) => g.name)
+  .filter((name) => !LEGACY_GROUP_NAMES.includes(name)));
 
 const eventTypeFilter = ref("All");
 const sessionFilter = ref("All");
@@ -84,6 +101,75 @@ const categories = computed(() => {
   const present = new Set(roster.value.map((m) => m.category));
   return Object.keys(CATEGORY_LABELS).filter((c) => present.has(c));
 });
+const memberFullNames = computed(() => roster.value.map((m) => `${m.first} ${m.last}`));
+const ministryOptions = computed(() => {
+  const set = new Set();
+  roster.value.forEach((m) => { if (m.ministry && m.ministry !== "General") set.add(m.ministry); });
+  return [...set].sort();
+});
+
+// --- add new person (walk-in during check-in) ------------------------------
+const showAddPerson = ref(false);
+const addingPerson = ref(false);
+const addPersonError = ref("");
+
+function blankAddPersonForm() {
+  return {
+    first: "", last: "", category: "KIDS", birthday: "",
+    inBibleStudy: false, bibleStudyGroup: "", volunteer: false, ministry: "",
+    isVisitor: false, guestType: "MEMBER",
+    isFirstTimer: false, isWalkIn: false, invitedByName: "",
+    activeLeader: "", potentialLeader: "",
+  };
+}
+const addPersonForm = reactive(blankAddPersonForm());
+
+function isBibleStudyGuest(form) {
+  return form.isVisitor && form.guestType === "BIBLE_STUDY";
+}
+function buildAddPersonPayload(form) {
+  const bsGuest = isBibleStudyGuest(form);
+  return {
+    ...form,
+    volunteer: bsGuest ? false : form.volunteer,
+    ministry: bsGuest ? "" : form.ministry,
+    bibleStudyGroup: (bsGuest || !form.inBibleStudy) ? "" : form.bibleStudyGroup,
+  };
+}
+function resetGuestFields(form) {
+  form.guestType = "MEMBER";
+  form.isFirstTimer = false;
+  form.isWalkIn = false;
+  form.invitedByName = "";
+}
+function closeAddPerson() {
+  showAddPerson.value = false;
+  addPersonError.value = "";
+  Object.assign(addPersonForm, blankAddPersonForm());
+}
+async function submitAddPerson() {
+  if (!addPersonForm.first.trim() || !addPersonForm.last.trim()) {
+    addPersonError.value = "First and last name are required.";
+    return;
+  }
+  addPersonError.value = "";
+  addingPerson.value = true;
+  try {
+    const created = await $fetch("/api/members", { method: "POST", body: buildAddPersonPayload(addPersonForm) });
+    const members = await $fetch("/api/members");
+    const presentIds = new Set(roster.value.filter((m) => m.present).map((m) => m.id));
+    presentIds.add(created.id);
+    roster.value = members.map((m) => ({
+      id: m.id, first: m.first, last: m.last, category: m.category, ministry: m.ministry,
+      present: presentIds.has(m.id),
+    }));
+    closeAddPerson();
+  } catch (e) {
+    addPersonError.value = "Couldn't save that person. Try again.";
+  } finally {
+    addingPerson.value = false;
+  }
+}
 
 const filteredRoster = computed(() => roster.value.filter((m) => {
   const fullName = `${m.first} ${m.last}`.toLowerCase();
@@ -115,6 +201,7 @@ async function startDraft() {
   keyVersesInput.value = "";
   facilitatorId.value = null;
   coFacilitatorId.value = null;
+  closeAddPerson();
   loadingRoster.value = true;
   try {
     const members = await $fetch("/api/members");
@@ -131,6 +218,7 @@ async function openCheckIn(id) {
   loadingRoster.value = true;
   query.value = "";
   category.value = "All";
+  closeAddPerson();
   try {
     const data = await $fetch(`/api/events/${id}/attendance`);
     activeEvent.value = data.event;
@@ -151,6 +239,7 @@ function closeCheckIn() {
   roster.value = [];
   facilitatorId.value = null;
   coFacilitatorId.value = null;
+  closeAddPerson();
 }
 
 function setFacilitator(id) {
@@ -238,6 +327,13 @@ function closeView() {
 
 <template>
   <div class="font-sans text-stone-800">
+    <datalist id="attendance-member-names">
+      <option v-for="name in memberFullNames" :key="name" :value="name" />
+    </datalist>
+    <datalist id="attendance-leader-names">
+      <option v-for="name in leaderNames" :key="name" :value="name" />
+    </datalist>
+
     <header class="mb-4">
       <p class="text-xs tracking-wide text-stone-400 font-medium mb-1">Oaks Community Church</p>
       <h1 class="font-serif text-3xl font-normal text-slate-800">Attendance</h1>
@@ -289,8 +385,108 @@ function closeView() {
           </select>
           <button class="text-xs text-slate-800 hover:underline" @click="selectAllVisible">Select all shown</button>
           <button class="text-xs text-orange-700 hover:underline" @click="clearAllVisible">Clear all shown</button>
+          <button :class="btnSecondary" @click="showAddPerson ? closeAddPerson() : (showAddPerson = true)">
+            {{ showAddPerson ? "Cancel" : "+ Add new person" }}
+          </button>
           <span class="ml-auto text-sm text-stone-400">{{ presentCount }} of {{ roster.length }} present</span>
         </div>
+
+        <form v-if="showAddPerson" class="flex flex-col gap-3.5 bg-white border border-stone-200 rounded-lg p-3.5 mb-3.5" @submit.prevent="submitAddPerson">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs text-stone-400 font-medium mb-1.5">First name</label>
+              <input v-model="addPersonForm.first" :class="[inputCls, 'w-full']" />
+            </div>
+            <div>
+              <label class="block text-xs text-stone-400 font-medium mb-1.5">Last name</label>
+              <input v-model="addPersonForm.last" :class="[inputCls, 'w-full']" />
+            </div>
+            <div>
+              <label class="block text-xs text-stone-400 font-medium mb-1.5">Birthday</label>
+              <input v-model="addPersonForm.birthday" type="date" :class="[inputCls, 'w-full']" />
+            </div>
+            <div>
+              <label class="block text-xs text-stone-400 font-medium mb-1.5">Category</label>
+              <select v-model="addPersonForm.category" :class="[inputCls, 'w-full']">
+                <option v-for="c in CATEGORY_ORDER" :key="c" :value="c">{{ CATEGORY_LABELS[c] }}</option>
+              </select>
+            </div>
+            <template v-if="!isBibleStudyGuest(addPersonForm)">
+              <div>
+                <label class="block text-xs text-stone-400 font-medium mb-1.5">In Bible study?</label>
+                <select v-model="addPersonForm.inBibleStudy" :class="[inputCls, 'w-full']">
+                  <option :value="false">No</option>
+                  <option :value="true">Yes</option>
+                </select>
+              </div>
+              <div v-if="addPersonForm.inBibleStudy">
+                <label class="block text-xs text-stone-400 font-medium mb-1.5">Bible study leader</label>
+                <input
+                  v-model="addPersonForm.bibleStudyGroup"
+                  list="attendance-leader-names"
+                  placeholder="Search leader…"
+                  :class="[inputCls, 'w-full']"
+                />
+              </div>
+              <div>
+                <label class="block text-xs text-stone-400 font-medium mb-1.5">Volunteer?</label>
+                <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
+                  <input type="checkbox" v-model="addPersonForm.volunteer" /> Volunteer
+                </label>
+              </div>
+              <div>
+                <label class="block text-xs text-stone-400 font-medium mb-1.5">Ministry</label>
+                <select v-model="addPersonForm.ministry" :disabled="!addPersonForm.volunteer" :class="[inputCls, 'w-full disabled:bg-stone-100 disabled:text-stone-400']">
+                  <option value="">Ministry</option>
+                  <option v-for="m in ministryOptions" :key="m" :value="m">{{ m }}</option>
+                </select>
+              </div>
+            </template>
+            <div>
+              <label class="block text-xs text-stone-400 font-medium mb-1.5">Guest?</label>
+              <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
+                <input type="checkbox" v-model="addPersonForm.isVisitor" @change="!addPersonForm.isVisitor && resetGuestFields(addPersonForm)" /> Guest
+              </label>
+            </div>
+            <div v-if="addPersonForm.isVisitor">
+              <label class="block text-xs text-stone-400 font-medium mb-1.5">Guest type</label>
+              <select v-model="addPersonForm.guestType" :class="[inputCls, 'w-full']">
+                <option value="MEMBER">Member</option>
+                <option value="BIBLE_STUDY">Bible Study</option>
+                <option value="VISITOR">Visitor</option>
+              </select>
+            </div>
+            <template v-if="addPersonForm.isVisitor">
+              <div>
+                <label class="block text-xs text-stone-400 font-medium mb-1.5">First timer?</label>
+                <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
+                  <input type="checkbox" v-model="addPersonForm.isFirstTimer" /> First Timer
+                </label>
+              </div>
+              <template v-if="addPersonForm.isFirstTimer">
+                <div>
+                  <label class="block text-xs text-stone-400 font-medium mb-1.5">Walk-in?</label>
+                  <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
+                    <input type="checkbox" v-model="addPersonForm.isWalkIn" /> Walk-in
+                  </label>
+                </div>
+                <div v-if="!addPersonForm.isWalkIn">
+                  <label class="block text-xs text-stone-400 font-medium mb-1.5">Invited by</label>
+                  <input
+                    v-model="addPersonForm.invitedByName"
+                    list="attendance-member-names"
+                    placeholder="Invited by…"
+                    :class="[inputCls, 'w-full']"
+                  />
+                </div>
+              </template>
+            </template>
+          </div>
+          <p v-if="addPersonError" class="text-orange-700 text-sm m-0">{{ addPersonError }}</p>
+          <button type="submit" :class="[btnPrimary, 'self-start']" :disabled="addingPerson">
+            {{ addingPerson ? "Saving…" : "Save" }}
+          </button>
+        </form>
 
         <div class="bg-white border border-stone-200 rounded-lg max-h-[480px] overflow-y-auto mb-3.5">
           <table class="w-full border-collapse text-sm">
