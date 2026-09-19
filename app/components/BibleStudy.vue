@@ -53,6 +53,35 @@ async function removeLeader(g) {
   await fetchGroups();
 }
 
+// --- inline edit (rename) ------------------------------------------------------------
+const editingId = ref(null);
+const editName = ref("");
+const editError = ref("");
+const savingEdit = ref(false);
+
+function startEdit(g) {
+  editingId.value = g.id;
+  editName.value = g.name;
+  editError.value = "";
+}
+function cancelEdit() {
+  editingId.value = null;
+}
+async function saveEdit(g) {
+  if (!editName.value.trim()) return;
+  savingEdit.value = true;
+  editError.value = "";
+  try {
+    await $fetch(`/api/bible-study-groups/${g.id}`, { method: "PATCH", body: { name: editName.value.trim() } });
+    editingId.value = null;
+    await fetchGroups();
+  } catch (e) {
+    editError.value = e?.data?.statusMessage || "Couldn't rename that leader.";
+  } finally {
+    savingEdit.value = false;
+  }
+}
+
 // --- view members modal ------------------------------------------------------------
 const viewingGroup = ref(null);
 const groupMembers = computed(() => {
@@ -70,6 +99,9 @@ const inputCls = "border border-stone-300 rounded-md px-3 py-2 text-sm bg-white 
 const btnPrimary = "bg-slate-800 text-stone-50 rounded-md px-4 py-2.5 text-sm font-medium hover:bg-slate-700";
 const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded px-2 py-1";
 const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 py-1 ml-2.5";
+const btnEdit = "text-xs text-white bg-slate-800 hover:bg-slate-700 rounded px-2 py-1 ml-2.5";
+const btnSave = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded px-2 py-1";
+const btnCancel = "text-xs text-slate-800 bg-white border border-stone-300 hover:bg-stone-50 rounded px-2 py-1 ml-2.5";
 </script>
 
 <template>
@@ -96,11 +128,31 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
         </thead>
         <tbody>
           <tr v-for="g in groups" :key="g.id" class="border-t border-stone-100">
-            <td class="p-2.5">{{ g.name }}</td>
+            <td class="p-2.5">
+              <template v-if="editingId === g.id">
+                <input
+                  v-model="editName"
+                  :class="[inputCls, 'w-full']"
+                  @keyup.enter="saveEdit(g)"
+                  @keyup.esc="cancelEdit"
+                />
+                <p v-if="editError" class="text-orange-700 text-xs mt-1 mb-0">{{ editError }}</p>
+              </template>
+              <template v-else>{{ g.name }}</template>
+            </td>
             <td class="p-2.5 text-center">{{ g.memberCount }}</td>
             <td class="p-2.5 text-center">
-              <button :class="btnView" @click="openView(g)">View</button>
-              <button v-if="isAdmin" :class="btnDelete" @click="removeLeader(g)">Delete</button>
+              <template v-if="editingId === g.id">
+                <button :class="btnSave" :disabled="savingEdit" @click="saveEdit(g)">
+                  {{ savingEdit ? "Saving…" : "Save" }}
+                </button>
+                <button :class="btnCancel" @click="cancelEdit">Cancel</button>
+              </template>
+              <template v-else>
+                <button :class="btnView" @click="openView(g)">View</button>
+                <button v-if="isAdmin" :class="btnEdit" @click="startEdit(g)">Edit</button>
+                <button v-if="isAdmin" :class="btnDelete" @click="removeLeader(g)">Delete</button>
+              </template>
             </td>
           </tr>
           <tr v-if="!loading && groups.length === 0">
