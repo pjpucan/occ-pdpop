@@ -336,7 +336,7 @@ function closeView() {
 
     <header class="mb-4">
       <p class="text-xs tracking-wide text-stone-400 font-medium mb-1">Oaks Community Church</p>
-      <h1 class="font-serif text-3xl font-normal text-slate-800">Attendance</h1>
+      <h1 class="font-semibold text-3xl font-normal text-slate-800">Attendance</h1>
     </header>
 
     <!-- Check-in screen for one event -->
@@ -344,7 +344,7 @@ function closeView() {
       <div class="flex justify-between items-center flex-wrap gap-2.5 mb-3.5">
         <div>
           <p class="text-xs text-stone-400">{{ activeEvent ? formatDate(activeEvent.date) : "" }}</p>
-          <h2 class="font-serif text-xl text-slate-800">{{ activeEvent?.name }}</h2>
+          <h2 class="font-semibold text-xl text-slate-800">{{ activeEvent?.name }}</h2>
         </div>
         <button :class="btnSecondary" @click="closeCheckIn">Back to events</button>
       </div>
@@ -593,7 +593,7 @@ function closeView() {
           <div class="flex justify-between items-start mb-3.5">
             <div>
               <p class="text-xs text-stone-400">{{ formatDate(viewDetail.event.date) }}</p>
-              <h2 class="font-serif text-xl text-slate-800">{{ viewDetail.event.name }}</h2>
+              <h2 class="font-semibold text-xl text-slate-800">{{ viewDetail.event.name }}</h2>
             </div>
             <button class="text-stone-400 hover:text-slate-800 text-sm" @click="closeView">Close</button>
           </div>
