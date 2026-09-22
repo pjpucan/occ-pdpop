@@ -51,7 +51,7 @@ function fmt(v) {
     <header class="flex justify-between items-end flex-wrap gap-3.5 mb-4">
       <div>
         <p class="text-xs tracking-wide text-stone-400 font-medium mb-1">Oaks Community Church</p>
-        <h1 class="font-serif text-3xl font-normal text-slate-800">Empower PDPOP Report</h1>
+        <h1 class="font-medium text-3xl font-normal text-slate-800">Empower PDPOP Report</h1>
       </div>
       <div class="flex gap-2.5 items-center">
         <input v-model="month" type="month" :class="inputCls" />

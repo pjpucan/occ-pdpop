@@ -108,7 +108,7 @@ const btnCancel = "text-xs text-slate-800 bg-white border border-stone-300 hover
   <div class="font-sans text-stone-800">
     <header class="mb-4">
       <p class="text-xs tracking-wide text-stone-400 font-medium mb-1">Oaks Community Church</p>
-      <h1 class="font-serif text-3xl font-normal text-slate-800">Bible Study</h1>
+      <h1 class="text-3xl font-normal text-slate-800">Bible Study</h1>
     </header>
 
     <form v-if="isAdmin" class="flex gap-2.5 items-center bg-white border border-stone-200 rounded-lg p-3.5 mb-4" @submit.prevent="addLeader">
@@ -166,7 +166,7 @@ const btnCancel = "text-xs text-slate-800 bg-white border border-stone-300 hover
     <div v-if="viewingGroup" class="fixed inset-0 bg-slate-900/40 flex items-center justify-center p-4 z-20" @click.self="closeView">
       <div class="bg-white rounded-lg max-w-lg w-full max-h-[85vh] overflow-y-auto p-5">
         <div class="flex justify-between items-start mb-3.5">
-          <h2 class="font-serif text-xl text-slate-800">{{ viewingGroup.name }}</h2>
+          <h2 class="text-xl text-slate-800">{{ viewingGroup.name }}</h2>
           <button class="text-stone-400 hover:text-slate-800 text-sm" @click="closeView">Close</button>
         </div>
 

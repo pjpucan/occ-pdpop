@@ -259,7 +259,7 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
     <header class="flex justify-between items-end flex-wrap gap-3.5 mb-4">
       <div>
         <p class="text-xs tracking-wide text-stone-400 font-medium mb-1">Oaks Community Church</p>
-        <h1 class="font-serif text-3xl font-normal text-slate-800">PDPop Database</h1>
+        <h1 class="font-semibold text-3xl font-normal text-slate-800">PDPop Database</h1>
       </div>
       <div class="flex gap-2.5">
         <button :class="btnSecondary" @click="showAddForm = !showAddForm">
@@ -373,19 +373,19 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
     <section class="grid gap-3 mb-5" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
       <div class="bg-white border border-stone-200 rounded-lg p-3.5">
         <p class="text-xs text-stone-400 mb-1.5">Total population</p>
-        <p class="font-serif text-2xl text-slate-800">{{ stats.total }}</p>
+        <p class="text-2xl text-slate-800">{{ stats.total }}</p>
       </div>
       <div class="bg-white border border-stone-200 rounded-lg p-3.5">
         <p class="text-xs text-stone-400 mb-1.5">Regular gathering</p>
-        <p class="font-serif text-2xl text-slate-800">{{ stats.regular }}</p>
+        <p class="text-2xl text-slate-800">{{ stats.regular }}</p>
       </div>
       <div class="bg-white border border-stone-200 rounded-lg p-3.5">
         <p class="text-xs text-stone-400 mb-1.5">In Bible study</p>
-        <p class="font-serif text-2xl text-slate-800">{{ stats.inBibleStudy }}</p>
+        <p class="text-2xl text-slate-800">{{ stats.inBibleStudy }}</p>
       </div>
       <div class="bg-white border border-stone-200 rounded-lg p-3.5">
         <p class="text-xs text-stone-400 mb-1.5">Guests</p>
-        <p class="font-serif text-2xl text-slate-800">{{ stats.guests }}</p>
+        <p class="text-2xl text-slate-800">{{ stats.guests }}</p>
       </div>
     </section>
 

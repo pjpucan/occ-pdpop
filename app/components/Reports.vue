@@ -62,7 +62,7 @@ const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded 
     <header class="flex justify-between items-end flex-wrap gap-3.5 mb-4">
       <div>
         <p class="text-xs tracking-wide text-stone-400 font-medium mb-1">Oaks Community Church</p>
-        <h1 class="font-serif text-3xl font-normal text-slate-800">Monthly Report</h1>
+        <h1 class="font-semibold text-3xl font-normal text-slate-800">Monthly Report</h1>
       </div>
       <input v-model="month" type="month" :class="inputCls" />
     </header>
@@ -74,31 +74,31 @@ const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded 
       <section class="grid gap-3 mb-5" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
         <div class="bg-white border border-stone-200 rounded-lg p-3.5">
           <p class="text-xs text-stone-400 mb-1.5">Total attended (services)</p>
-          <p class="font-serif text-2xl text-slate-800">{{ report.services.totalAttended }}</p>
+          <p class="text-2xl text-slate-800">{{ report.services.totalAttended }}</p>
         </div>
         <div class="bg-white border border-stone-200 rounded-lg p-3.5">
           <p class="text-xs text-stone-400 mb-1.5">Morning attendance</p>
-          <p class="font-serif text-2xl text-slate-800">{{ report.services.bySession.MORNING }}</p>
+          <p class="text-2xl text-slate-800">{{ report.services.bySession.MORNING }}</p>
         </div>
         <div class="bg-white border border-stone-200 rounded-lg p-3.5">
           <p class="text-xs text-stone-400 mb-1.5">Afternoon attendance</p>
-          <p class="font-serif text-2xl text-slate-800">{{ report.services.bySession.AFTERNOON }}</p>
+          <p class="text-2xl text-slate-800">{{ report.services.bySession.AFTERNOON }}</p>
         </div>
         <div class="bg-white border border-stone-200 rounded-lg p-3.5">
           <p class="text-xs text-stone-400 mb-1.5">Services held</p>
-          <p class="font-serif text-2xl text-slate-800">{{ report.services.eventCount }}</p>
+          <p class="text-2xl text-slate-800">{{ report.services.eventCount }}</p>
         </div>
         <div class="bg-white border border-stone-200 rounded-lg p-3.5">
           <p class="text-xs text-stone-400 mb-1.5">Bible studies conducted</p>
-          <p class="font-serif text-2xl text-slate-800">{{ report.bibleStudy.sessionsConducted }}</p>
+          <p class="text-2xl text-slate-800">{{ report.bibleStudy.sessionsConducted }}</p>
         </div>
         <div class="bg-white border border-stone-200 rounded-lg p-3.5">
           <p class="text-xs text-stone-400 mb-1.5">Bible study attendance</p>
-          <p class="font-serif text-2xl text-slate-800">{{ report.bibleStudy.totalAttended }}</p>
+          <p class="text-2xl text-slate-800">{{ report.bibleStudy.totalAttended }}</p>
         </div>
       </section>
 
-      <h2 class="font-serif text-lg text-slate-800 mb-2.5">Attendance by Sunday</h2>
+      <h2 class="text-lg text-slate-800 mb-2.5">Attendance by Sunday</h2>
       <div class="bg-white border border-stone-200 rounded-lg mb-5">
         <table class="w-full border-collapse text-sm">
           <thead>
@@ -123,7 +123,7 @@ const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded 
         </table>
       </div>
 
-      <h2 class="font-serif text-lg text-slate-800 mb-2.5">Service attendance by category</h2>
+      <h2 class="text-lg text-slate-800 mb-2.5">Service attendance by category</h2>
       <div class="bg-white border border-stone-200 rounded-lg">
         <table class="w-full border-collapse text-sm">
           <thead>
@@ -153,7 +153,7 @@ const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded 
     <div v-if="viewingCategory" class="fixed inset-0 bg-slate-900/40 flex items-center justify-center p-4 z-20" @click.self="closeView">
       <div class="bg-white rounded-lg max-w-lg w-full max-h-[85vh] overflow-y-auto p-5">
         <div class="flex justify-between items-start mb-3.5">
-          <h2 class="font-serif text-xl text-slate-800">{{ viewingCategory.label }}</h2>
+          <h2 class="text-xl text-slate-800">{{ viewingCategory.label }}</h2>
           <button class="text-stone-400 hover:text-slate-800 text-sm" @click="closeView">Close</button>
         </div>
 
