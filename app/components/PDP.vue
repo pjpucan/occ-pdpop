@@ -340,7 +340,7 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
             <option value="VISITOR">Visitor</option>
           </select>
         </div>
-        <template v-if="addForm.isVisitor">
+        <template v-if="addForm.isVisitor && !isBibleStudyGuest(addForm)">
           <div>
             <label class="block text-xs text-stone-400 font-medium mb-1.5">First timer?</label>
             <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
@@ -512,7 +512,7 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
                       <option value="BIBLE_STUDY">Bible Study</option>
                       <option value="VISITOR">Visitor</option>
                     </select>
-                    <template v-if="editForm.isVisitor">
+                    <template v-if="editForm.isVisitor && !isBibleStudyGuest(editForm)">
                       <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
                         <input type="checkbox" v-model="editForm.isFirstTimer" /> First Timer
                       </label>

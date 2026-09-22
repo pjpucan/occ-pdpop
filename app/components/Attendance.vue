@@ -456,7 +456,7 @@ function closeView() {
                 <option value="VISITOR">Visitor</option>
               </select>
             </div>
-            <template v-if="addPersonForm.isVisitor">
+            <template v-if="addPersonForm.isVisitor && !isBibleStudyGuest(addPersonForm)">
               <div>
                 <label class="block text-xs text-stone-400 font-medium mb-1.5">First timer?</label>
                 <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
