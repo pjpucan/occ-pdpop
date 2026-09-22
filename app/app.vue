@@ -4,6 +4,7 @@ const links = [
   { to: "/attendance", label: "Attendance" },
   { to: "/bible-study", label: "Bible Study" },
   { to: "/reports", label: "Reports" },
+  { to: "/empower-report", label: "Empower Report" },
 ];
 
 const route = useRoute();
