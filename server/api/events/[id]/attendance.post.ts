@@ -4,7 +4,8 @@ import { getSessionRole } from "~~/server/utils/auth";
 
 // Body: { presentMemberIds: string[], facilitatorId?, coFacilitatorId?,
 // preacherName?, topic? } — the full set of members checked in for this
-// event, plus BIBLE_STUDY roles or SERVICE preacher/topic. Simplest correct
+// event, plus BIBLE_STUDY roles + session title (topic) or SERVICE
+// preacher/topic. Simplest correct
 // approach is replace-in-place: wipe this event's attendance rows, then
 // recreate one per present member.
 export default defineEventHandler(async (event) => {

@@ -50,9 +50,50 @@ const eventTypeFilter = ref("All");
 const sessionFilter = ref("All");
 const filteredEvents = computed(() => events.value.filter((e) => {
   if (eventTypeFilter.value !== "All" && e.type !== eventTypeFilter.value) return false;
-  if (sessionFilter.value !== "All" && e.session !== sessionFilter.value) return false;
+  // Morning/Afternoon only applies to services — don't let it hide Bible studies.
+  if (e.type === "SERVICE" && sessionFilter.value !== "All" && e.session !== sessionFilter.value) return false;
   return true;
 }));
+// The events list is split into one table per event type. A section is
+// hidden only when the type filter picks the other type.
+const eventSections = computed(() => [
+  { type: "SERVICE", title: "Sunday Celebration" },
+  { type: "BIBLE_STUDY", title: "Bible Study" },
+]
+  .filter((sec) => eventTypeFilter.value === "All" || eventTypeFilter.value === sec.type)
+  .map((sec) => {
+    const list = filteredEvents.value.filter((e) => e.type === sec.type);
+    return { ...sec, events: list, weeks: groupByWeek(list), totalPresent: list.reduce((n, e) => n + e.presentCount, 0) };
+  }));
+
+// Monday–Sunday weeks, the same cut-off periods as the Empower report.
+// Event dates are stored as UTC midnight, so the math stays in UTC.
+function weekStartOf(iso) {
+  const d = new Date(iso);
+  const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
+  return start;
+}
+function weekLabel(start) {
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 6);
+  const fmt = (d, opts) => d.toLocaleDateString(undefined, { timeZone: "UTC", ...opts });
+  const sameMonth = start.getUTCMonth() === end.getUTCMonth();
+  return `${fmt(start, { month: "short", day: "numeric" })} – ${fmt(end, sameMonth ? { day: "numeric" } : { month: "short", day: "numeric" })}`;
+}
+function groupByWeek(list) {
+  const weeks = new Map();
+  for (const e of list) {
+    const start = weekStartOf(e.date);
+    const key = start.toISOString();
+    if (!weeks.has(key)) weeks.set(key, { key, label: weekLabel(start), events: [], totalPresent: 0 });
+    const w = weeks.get(key);
+    w.events.push(e);
+    w.totalPresent += e.presentCount;
+  }
+  // Events arrive newest-first, so the weeks already come out newest-first.
+  return [...weeks.values()];
+}
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
@@ -281,7 +322,7 @@ async function saveAttendance() {
       presentMemberIds,
       ...(isService
         ? { preacherName: preacherName.value || null, topic: topic.value || null, keyVerses }
-        : { facilitatorId: facilitatorId.value, coFacilitatorId: coFacilitatorId.value }),
+        : { facilitatorId: facilitatorId.value, coFacilitatorId: coFacilitatorId.value, topic: topic.value || null }),
     };
     if (checkInMode.value === "draft") {
       // Nobody checked on a brand-new draft means there's nothing to save —
@@ -293,7 +334,8 @@ async function saveAttendance() {
             ...activeEvent.value,
             session: activeEvent.value.session || undefined,
             preacherName: isService ? preacherName.value || undefined : undefined,
-            topic: isService ? topic.value || undefined : undefined,
+            // SERVICE: sermon topic. BIBLE_STUDY: the session title (e.g. the group).
+            topic: topic.value || undefined,
             keyVerses: isService ? keyVerses : undefined,
           },
         });
@@ -390,6 +432,8 @@ function closeView() {
             <option value="">—</option>
             <option v-for="m in ministryMembers" :key="m.id" :value="m.id">{{ m.first }} {{ m.last }} — {{ m.ministry }}</option>
           </select>
+          <label class="text-xs text-stone-400 font-medium">Session</label>
+          <input v-model="topic" type="text" placeholder="Group or session title" :class="[inputCls, 'flex-1 min-w-[200px]']" />
           <p v-if="ministryMembers.length === 0" class="text-xs text-orange-700 m-0">No members have a Ministry assigned yet.</p>
         </div>
 
@@ -558,50 +602,70 @@ function closeView() {
           <option value="SERVICE">Sunday Celebration</option>
           <option value="BIBLE_STUDY">Bible Study</option>
         </select>
-        <select v-model="sessionFilter" :class="inputCls">
+        <select v-if="eventTypeFilter !== 'BIBLE_STUDY'" v-model="sessionFilter" :class="inputCls">
           <option value="All">All sessions</option>
           <option value="MORNING">Morning</option>
           <option value="AFTERNOON">Afternoon</option>
         </select>
       </div>
 
-      <div class="bg-white border border-stone-200 rounded-lg max-h-[480px] overflow-y-auto">
-        <table class="w-full border-collapse text-sm">
-          <thead>
-            <tr class="text-left text-xs text-stone-400">
-              <th class="p-2.5 font-medium">Date</th>
-              <th class="p-2.5 font-medium">Event</th>
-              <th class="p-2.5 font-medium">Session</th>
-              <th class="p-2.5 font-medium">Present</th>
-              <th class="p-2.5 font-medium text-center">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="e in filteredEvents" :key="e.id" class="border-t border-stone-100">
-              <td class="p-2.5">{{ formatDate(e.date) }}</td>
-              <td class="p-2.5">{{ e.name }}</td>
-              <td class="p-2.5 text-stone-400">
-                {{ e.type === "BIBLE_STUDY" ? "—" : (e.session === "AFTERNOON" ? "Afternoon" : "Morning") }}
-              </td>
-              <td class="p-2.5">{{ e.presentCount }}</td>
-              <td class="p-2.5 text-center whitespace-nowrap">
-                <button :class="btnView" @click="openView(e.id)">View</button>
-                <button
-                  v-if="isAdmin || e.presentCount === 0"
-                  :class="btnEdit"
-                  @click="openCheckIn(e.id)"
-                >
-                  {{ e.presentCount > 0 ? "Edit" : "Take attendance" }}
-                </button>
-                <button v-if="isAdmin" :class="btnDelete" @click="removeEvent(e)">Delete</button>
-              </td>
-            </tr>
-            <tr v-if="!loadingEvents && filteredEvents.length === 0">
-              <td colspan="5" class="text-center py-7 text-stone-400">No events match these filters.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <!-- Sunday services and Bible studies listed separately -->
+      <section v-for="sec in eventSections" :key="sec.type" class="mb-6">
+        <div class="flex items-baseline justify-between mb-2">
+          <h2 class="text-lg text-slate-800">{{ sec.title }}</h2>
+          <span class="text-sm text-stone-400">
+            {{ sec.events.length }} {{ sec.events.length === 1 ? "event" : "Events" }} · {{ sec.totalPresent }} Present
+          </span>
+        </div>
+        <div class="bg-white border border-stone-200 rounded-lg max-h-[480px] overflow-y-auto">
+          <table class="w-full border-collapse text-sm table-fixed">
+            <thead>
+              <tr class="text-left text-xs text-stone-400">
+                <th class="p-2.5 font-medium w-[18%]">Date</th>
+                <th class="p-2.5 font-medium">{{ sec.type === "SERVICE" ? "Session" : "Session / Group" }}</th>
+                <th class="p-2.5 font-medium w-[12%]">Present</th>
+                <th class="p-2.5 font-medium text-center w-[260px]">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="w in sec.weeks" :key="w.key">
+              <tr class="bg-stone-50 border-t border-stone-200">
+                <td colspan="4" class="px-2.5 py-1.5 text-xs font-medium text-slate-700">Week of {{ w.label }}</td>
+              </tr>
+              <tr v-for="e in w.events" :key="e.id" class="border-t border-stone-100">
+                <td class="p-2.5">{{ formatDate(e.date) }}</td>
+                <td class="p-2.5 text-stone-500">
+                  {{ e.type === "BIBLE_STUDY" ? (e.topic || "—") : (e.session === "AFTERNOON" ? "Afternoon" : "Morning") }}
+                </td>
+                <td class="p-2.5">{{ e.presentCount }}</td>
+                <td class="p-2.5 text-center whitespace-nowrap">
+                  <button :class="btnView" @click="openView(e.id)">View</button>
+                  <button
+                    v-if="isAdmin || e.presentCount === 0"
+                    :class="btnEdit"
+                    @click="openCheckIn(e.id)"
+                  >
+                    {{ e.presentCount > 0 ? "Edit" : "Take attendance" }}
+                  </button>
+                  <button v-if="isAdmin" :class="btnDelete" @click="removeEvent(e)">Delete</button>
+                </td>
+              </tr>
+              <!-- Week subtotal, with the count lined up under Present -->
+              <tr class="border-t border-stone-100 text-xs text-stone-500">
+                <td colspan="2" class="px-2.5 py-1.5 text-right">
+                  Week total · {{ w.events.length }} {{ w.events.length === 1 ? "event" : "Events" }}
+                </td>
+                <td class="px-2.5 py-1.5 font-semibold text-slate-800">{{ w.totalPresent }} Present</td>
+                <td></td>
+              </tr>
+              </template>
+              <tr v-if="!loadingEvents && sec.events.length === 0">
+                <td colspan="4" class="text-center py-7 text-stone-400">No {{ sec.title.toLowerCase() }} events match these filters.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
 
     <!-- View details modal -->
@@ -633,6 +697,10 @@ function closeView() {
             <div v-if="viewDetail.event.type === 'SERVICE'" class="flex gap-2">
               <dt class="text-stone-400 w-28 shrink-0">Key Verses</dt>
               <dd>{{ viewDetail.event.keyVerses?.length ? viewDetail.event.keyVerses.join(", ") : "—" }}</dd>
+            </div>
+            <div v-if="viewDetail.event.type === 'BIBLE_STUDY'" class="flex gap-2">
+              <dt class="text-stone-400 w-28 shrink-0">Session</dt>
+              <dd>{{ viewDetail.event.topic || "—" }}</dd>
             </div>
             <div v-if="viewDetail.event.type === 'BIBLE_STUDY'" class="flex gap-2">
               <dt class="text-stone-400 w-28 shrink-0">Facilitator</dt>

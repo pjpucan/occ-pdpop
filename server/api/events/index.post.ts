@@ -24,7 +24,8 @@ export default defineEventHandler(async (event) => {
       type: body.type,
       session: body.type === "SERVICE" ? body.session : null,
       preacherName: body.type === "SERVICE" ? (body.preacherName || null) : null,
-      topic: body.type === "SERVICE" ? (body.topic || null) : null,
+      // SERVICE: sermon topic. BIBLE_STUDY: session title (e.g. the group).
+      topic: body.topic || null,
       keyVerses: body.type === "SERVICE" && Array.isArray(body.keyVerses) ? body.keyVerses : [],
     },
   });

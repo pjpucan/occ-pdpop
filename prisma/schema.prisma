@@ -119,8 +119,9 @@ model Event {
   type         EventType     @default(SERVICE)
   // Only meaningful for SERVICE events — Bible studies aren't tagged AM/PM.
   session      Session?
-  // SERVICE-only: who preached, the sermon/topic, and its key verses.
+  // SERVICE-only: who preached and the sermon's key verses.
   preacherName String?
+  // SERVICE: sermon/topic. BIBLE_STUDY: the session title (e.g. the group).
   topic        String?
   keyVerses    String[]      @default([])
   attendances  Attendance[]
