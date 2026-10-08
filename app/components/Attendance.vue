@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, reactive } from "vue";
+import { ref, computed, onMounted, reactive, watch } from "vue";
 
 const isAdmin = useIsAdmin();
 
@@ -23,10 +23,11 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
 // --- event list ------------------------------------------------------------
 const events = ref([]);
 const loadingEvents = ref(true);
+const eventsMonth = ref(new Date().toISOString().slice(0, 7));
 
 async function fetchEvents() {
   loadingEvents.value = true;
-  events.value = await $fetch("/api/events");
+  events.value = await $fetch("/api/events", { query: { month: eventsMonth.value } });
   loadingEvents.value = false;
 }
 const leaders = ref([]);
@@ -37,6 +38,7 @@ onMounted(() => {
   fetchEvents();
   fetchLeaders();
 });
+watch(eventsMonth, fetchEvents);
 // "Couples" and "NXT" are legacy topical group names from before groups were
 // tracked by leader — not people, so they're excluded from the leader search.
 const LEGACY_GROUP_NAMES = ["Couples", "NXT"];
@@ -117,7 +119,7 @@ function blankAddPersonForm() {
   return {
     first: "", last: "", category: "KIDS", birthday: "",
     inBibleStudy: false, bibleStudyGroup: "", volunteer: false, ministry: "",
-    isVisitor: false, guestType: "MEMBER",
+    personType: "MEMBER", isVisitor: false, guestType: "MEMBER",
     isFirstTimer: false, isWalkIn: false, invitedByName: "",
     activeLeader: "", potentialLeader: "",
   };
@@ -133,14 +135,19 @@ function buildAddPersonPayload(form) {
     ...form,
     volunteer: bsGuest ? false : form.volunteer,
     ministry: bsGuest ? "" : form.ministry,
-    bibleStudyGroup: (bsGuest || !form.inBibleStudy) ? "" : form.bibleStudyGroup,
+    bibleStudyGroup: (bsGuest || form.inBibleStudy) ? form.bibleStudyGroup : "",
   };
 }
-function resetGuestFields(form) {
-  form.guestType = "MEMBER";
-  form.isFirstTimer = false;
-  form.isWalkIn = false;
-  form.invitedByName = "";
+// One "Type" dropdown drives the two stored fields: Member = not a guest,
+// Visitor = attends services but isn't a member, Bible Study = Bible-study-only.
+function applyPersonType(form) {
+  form.isVisitor = form.personType !== "MEMBER";
+  form.guestType = form.isVisitor ? form.personType : "MEMBER";
+  if (form.personType === "MEMBER") {
+    form.isFirstTimer = false;
+    form.isWalkIn = false;
+    form.invitedByName = "";
+  }
 }
 function closeAddPerson() {
   showAddPerson.value = false;
@@ -309,10 +316,19 @@ async function saveAttendance() {
 const viewingEvent = ref(null);
 const viewDetail = ref(null);
 const loadingView = ref(false);
+const attendeeSearch = ref("");
+
+const viewAttendees = computed(() => {
+  const present = viewDetail.value?.members.filter((m) => m.present) ?? [];
+  const q = attendeeSearch.value.trim().toLowerCase();
+  if (!q) return present;
+  return present.filter((m) => `${m.first} ${m.last}`.toLowerCase().includes(q));
+});
 
 async function openView(id) {
   viewingEvent.value = id;
   loadingView.value = true;
+  attendeeSearch.value = "";
   try {
     viewDetail.value = await $fetch(`/api/events/${id}/attendance`);
   } finally {
@@ -411,23 +427,23 @@ function closeView() {
                 <option v-for="c in CATEGORY_ORDER" :key="c" :value="c">{{ CATEGORY_LABELS[c] }}</option>
               </select>
             </div>
+            <div v-if="!isBibleStudyGuest(addPersonForm)">
+              <label class="block text-xs text-stone-400 font-medium mb-1.5">In Bible study?</label>
+              <select v-model="addPersonForm.inBibleStudy" :class="[inputCls, 'w-full']">
+                <option :value="false">No</option>
+                <option :value="true">Yes</option>
+              </select>
+            </div>
+            <div v-if="addPersonForm.inBibleStudy && !isBibleStudyGuest(addPersonForm)">
+              <label class="block text-xs text-stone-400 font-medium mb-1.5">Bible study leader</label>
+              <input
+                v-model="addPersonForm.bibleStudyGroup"
+                list="attendance-leader-names"
+                placeholder="Search leader…"
+                :class="[inputCls, 'w-full']"
+              />
+            </div>
             <template v-if="!isBibleStudyGuest(addPersonForm)">
-              <div>
-                <label class="block text-xs text-stone-400 font-medium mb-1.5">In Bible study?</label>
-                <select v-model="addPersonForm.inBibleStudy" :class="[inputCls, 'w-full']">
-                  <option :value="false">No</option>
-                  <option :value="true">Yes</option>
-                </select>
-              </div>
-              <div v-if="addPersonForm.inBibleStudy">
-                <label class="block text-xs text-stone-400 font-medium mb-1.5">Bible study leader</label>
-                <input
-                  v-model="addPersonForm.bibleStudyGroup"
-                  list="attendance-leader-names"
-                  placeholder="Search leader…"
-                  :class="[inputCls, 'w-full']"
-                />
-              </div>
               <div>
                 <label class="block text-xs text-stone-400 font-medium mb-1.5">Volunteer?</label>
                 <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
@@ -443,17 +459,19 @@ function closeView() {
               </div>
             </template>
             <div>
-              <label class="block text-xs text-stone-400 font-medium mb-1.5">Guest?</label>
-              <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
-                <input type="checkbox" v-model="addPersonForm.isVisitor" @change="!addPersonForm.isVisitor && resetGuestFields(addPersonForm)" /> Guest
-              </label>
-            </div>
-            <div v-if="addPersonForm.isVisitor">
-              <label class="block text-xs text-stone-400 font-medium mb-1.5">Guest type</label>
-              <select v-model="addPersonForm.guestType" :class="[inputCls, 'w-full']">
+              <label class="block text-xs text-stone-400 font-medium mb-1.5">Type</label>
+              <select v-model="addPersonForm.personType" :class="[inputCls, 'w-full']" @change="applyPersonType(addPersonForm)">
                 <option value="MEMBER">Member</option>
-                <option value="BIBLE_STUDY">Bible Study</option>
                 <option value="VISITOR">Visitor</option>
+                <option value="BIBLE_STUDY">Bible Study</option>
+              </select>
+            </div>
+            <div v-if="isBibleStudyGuest(addPersonForm)">
+              <label class="block text-xs text-stone-400 font-medium mb-1.5">Leader</label>
+              <select v-model="addPersonForm.bibleStudyGroup" :class="[inputCls, 'w-full']">
+                <option value="">Select leader…</option>
+                <option v-if="addPersonForm.bibleStudyGroup && !leaderNames.includes(addPersonForm.bibleStudyGroup)" :value="addPersonForm.bibleStudyGroup">{{ addPersonForm.bibleStudyGroup }}</option>
+                <option v-for="name in leaderNames" :key="name" :value="name">{{ name }}</option>
               </select>
             </div>
             <template v-if="addPersonForm.isVisitor && !isBibleStudyGuest(addPersonForm)">
@@ -534,6 +552,7 @@ function closeView() {
       </form>
 
       <div class="flex gap-2.5 flex-wrap items-center mb-3.5">
+        <input v-model="eventsMonth" type="month" :class="inputCls" />
         <select v-model="eventTypeFilter" :class="inputCls">
           <option value="All">All events</option>
           <option value="SERVICE">Sunday Celebration</option>
@@ -625,13 +644,21 @@ function closeView() {
             </div>
           </dl>
 
-          <p class="text-xs text-stone-400 font-medium mb-1.5">
-            Attendees ({{ viewDetail.members.filter((m) => m.present).length }})
-          </p>
+          <div class="flex justify-between items-center mb-1.5 gap-2">
+            <p class="text-xs text-stone-400 font-medium">
+              Attendees ({{ viewDetail.members.filter((m) => m.present).length }})
+            </p>
+            <input
+              v-model="attendeeSearch"
+              type="text"
+              placeholder="Search attendees…"
+              class="border border-stone-300 rounded-md px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-800/20 w-48"
+            />
+          </div>
           <div class="border border-stone-200 rounded-lg max-h-64 overflow-y-auto">
             <table class="w-full border-collapse text-sm">
               <tbody>
-                <tr v-for="m in viewDetail.members.filter((m) => m.present)" :key="m.id" class="border-t border-stone-100 first:border-t-0">
+                <tr v-for="m in viewAttendees" :key="m.id" class="border-t border-stone-100 first:border-t-0">
                   <td class="p-2">{{ m.first }} {{ m.last }}</td>
                   <td class="p-2 text-stone-400">{{ CATEGORY_LABELS[m.category] }}</td>
                   <td class="p-2 text-right">
@@ -639,8 +666,10 @@ function closeView() {
                     <span v-else-if="m.role === 'CO_FACILITATOR'" class="text-xs font-medium bg-slate-100 text-slate-800 rounded-full px-2 py-0.5">Co-Facilitator</span>
                   </td>
                 </tr>
-                <tr v-if="viewDetail.members.filter((m) => m.present).length === 0">
-                  <td colspan="3" class="text-center py-5 text-stone-400">No attendees recorded.</td>
+                <tr v-if="viewAttendees.length === 0">
+                  <td colspan="3" class="text-center py-5 text-stone-400">
+                    {{ attendeeSearch ? "No attendees match your search." : "No attendees recorded." }}
+                  </td>
                 </tr>
               </tbody>
             </table>

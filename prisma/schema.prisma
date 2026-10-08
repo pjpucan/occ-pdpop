@@ -68,6 +68,9 @@ model Member {
   isWalkIn         Boolean       @default(false)
   birthday         DateTime?
   joinedAt         DateTime      @default(now())
+  // Set when an admin re-enables an Inactive member — restarts their
+  // 3-month grace window so they aren't immediately flagged again.
+  reactivatedAt    DateTime?
 
   // onDelete: Cascade so removing a member cleans up their
   // Bible study membership, volunteer record, and attendance history

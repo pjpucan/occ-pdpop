@@ -38,14 +38,20 @@ const categoryRows = computed(() => {
   if (!report.value) return [];
   return CATEGORY_ORDER
     .filter((c) => report.value.services.byCategory[c])
-    .map((c) => ({ code: c, label: CATEGORY_LABELS[c], count: report.value.services.byCategory[c] }));
+    .map((c) => ({ code: c, label: CATEGORY_LABELS[c], count: report.value.services.byCategory[c], source: "services" }));
+});
+const bibleStudyCategoryRows = computed(() => {
+  if (!report.value) return [];
+  return CATEGORY_ORDER
+    .filter((c) => report.value.bibleStudy.byCategory[c])
+    .map((c) => ({ code: c, label: CATEGORY_LABELS[c], count: report.value.bibleStudy.byCategory[c], source: "bibleStudy" }));
 });
 
 // --- view members modal ------------------------------------------------------------
 const viewingCategory = ref(null);
 const viewingMembers = computed(() => {
   if (!viewingCategory.value || !report.value) return [];
-  return report.value.services.byCategoryMembers[viewingCategory.value.code] || [];
+  return report.value[viewingCategory.value.source].byCategoryMembers[viewingCategory.value.code] || [];
 });
 function openView(row) {
   viewingCategory.value = row;
@@ -124,7 +130,7 @@ const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded 
       </div>
 
       <h2 class="text-lg text-slate-800 mb-2.5">Service attendance by category</h2>
-      <div class="bg-white border border-stone-200 rounded-lg">
+      <div class="bg-white border border-stone-200 rounded-lg mb-5">
         <table class="w-full border-collapse text-sm">
           <thead>
             <tr class="text-left text-xs text-stone-400">
@@ -143,6 +149,31 @@ const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded 
             </tr>
             <tr v-if="categoryRows.length === 0">
               <td colspan="3" class="text-center py-7 text-stone-400">No service attendance recorded this month.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 class="text-lg text-slate-800 mb-2.5">Bible study attendance by category</h2>
+      <div class="bg-white border border-stone-200 rounded-lg">
+        <table class="w-full border-collapse text-sm">
+          <thead>
+            <tr class="text-left text-xs text-stone-400">
+              <th class="p-2.5 font-medium">Category</th>
+              <th class="p-2.5 font-medium text-center">Attended</th>
+              <th class="p-2.5 font-medium text-center">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in bibleStudyCategoryRows" :key="row.code" class="border-t border-stone-100">
+              <td class="p-2.5">{{ row.label }}</td>
+              <td class="p-2.5 text-center">{{ row.count }}</td>
+              <td class="p-2.5 text-center">
+                <button :class="btnView" @click="openView(row)">View</button>
+              </td>
+            </tr>
+            <tr v-if="bibleStudyCategoryRows.length === 0">
+              <td colspan="3" class="text-center py-7 text-stone-400">No Bible study attendance recorded this month.</td>
             </tr>
           </tbody>
         </table>

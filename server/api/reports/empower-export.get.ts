@@ -66,7 +66,7 @@ export default defineEventHandler(async (event) => {
   let rowIndex = headerRow2 + 1;
   function writeRow(label: string, r: {
     firstTimerAllOfficial: number | null; runningTotal: number | null; actualBSConducted: number | null;
-    firstTimerBS: number | null; attendees: number | null; categories: Record<string, number>; totalEpop: number;
+    firstTimerBS: number | null; attendees: number | null; categories: Record<string, number> | null; totalEpop: number | null;
   }) {
     const row = ws.getRow(rowIndex);
     row.getCell(1).value = label;
@@ -76,7 +76,7 @@ export default defineEventHandler(async (event) => {
     row.getCell(5).value = r.firstTimerBS;
     row.getCell(6).value = r.attendees;
     CATEGORY_COLUMNS.forEach((cat, i) => {
-      row.getCell(7 + i).value = r.categories[cat];
+      row.getCell(7 + i).value = r.categories?.[cat] ?? null;
     });
     row.getCell(15).value = r.totalEpop;
     for (let c = 1; c <= 15; c++) {
@@ -98,7 +98,7 @@ export default defineEventHandler(async (event) => {
   totalRow.getCell(5).value = report.totals.firstTimerBS;
   totalRow.getCell(6).value = report.totals.attendees;
   CATEGORY_COLUMNS.forEach((cat, i) => {
-    totalRow.getCell(7 + i).value = report.totals.categories[cat];
+    totalRow.getCell(7 + i).value = report.totals.categories?.[cat] ?? null;
   });
   totalRow.getCell(15).value = report.totals.totalEpop;
   for (let c = 1; c <= 15; c++) {
