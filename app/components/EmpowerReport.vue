@@ -105,28 +105,28 @@ function fmt(v) {
               <td class="p-2 border border-stone-200 text-center">{{ fmt(report.base.actualBSConducted) }}</td>
               <td class="p-2 border border-stone-200 text-center">{{ fmt(report.base.firstTimerBS) }}</td>
               <td class="p-2 border border-stone-200 text-center">{{ fmt(report.base.attendees) }}</td>
-              <td v-for="c in CATEGORY_COLUMNS" :key="c" class="p-2 border border-stone-200 text-center">{{ report.base.categories[c] }}</td>
-              <td class="p-2 border border-stone-200 text-center font-semibold italic">{{ report.base.totalEpop }}</td>
+              <td v-for="c in CATEGORY_COLUMNS" :key="c" class="p-2 border border-stone-200 text-center">{{ fmt(report.base.categories?.[c]) }}</td>
+              <td class="p-2 border border-stone-200 text-center font-semibold italic">{{ fmt(report.base.totalEpop) }}</td>
             </tr>
             <tr v-for="p in report.periods" :key="p.label" class="border-t border-stone-100">
               <td class="p-2 border border-stone-200 font-medium whitespace-nowrap">{{ p.label }}</td>
               <td class="p-2 border border-stone-200 text-center">{{ p.firstTimerAllOfficial }}</td>
-              <td class="p-2 border border-stone-200 text-center">{{ p.runningTotal }}</td>
+              <td class="p-2 border border-stone-200 text-center">{{ fmt(p.runningTotal) }}</td>
               <td class="p-2 border border-stone-200 text-center">{{ p.actualBSConducted }}</td>
               <td class="p-2 border border-stone-200 text-center">{{ p.firstTimerBS }}</td>
               <td class="p-2 border border-stone-200 text-center">{{ p.attendees }}</td>
-              <td v-for="c in CATEGORY_COLUMNS" :key="c" class="p-2 border border-stone-200 text-center">{{ p.categories[c] }}</td>
-              <td class="p-2 border border-stone-200 text-center font-semibold italic">{{ p.totalEpop }}</td>
+              <td v-for="c in CATEGORY_COLUMNS" :key="c" class="p-2 border border-stone-200 text-center">{{ fmt(p.categories?.[c]) }}</td>
+              <td class="p-2 border border-stone-200 text-center font-semibold italic">{{ fmt(p.totalEpop) }}</td>
             </tr>
             <tr class="bg-slate-800 text-white font-medium">
               <td class="p-2 border border-slate-700">{{ report.totals.label }}</td>
               <td class="p-2 border border-slate-700 text-center">{{ report.totals.firstTimerAllOfficial }}</td>
-              <td class="p-2 border border-slate-700 text-center">{{ report.totals.runningTotal }}</td>
+              <td class="p-2 border border-slate-700 text-center">{{ fmt(report.totals.runningTotal) }}</td>
               <td class="p-2 border border-slate-700 text-center">{{ report.totals.actualBSConducted }}</td>
               <td class="p-2 border border-slate-700 text-center">{{ report.totals.firstTimerBS }}</td>
               <td class="p-2 border border-slate-700 text-center">{{ report.totals.attendees }}</td>
-              <td v-for="c in CATEGORY_COLUMNS" :key="c" class="p-2 border border-slate-700 text-center">{{ report.totals.categories[c] }}</td>
-              <td class="p-2 border border-slate-700 text-center">{{ report.totals.totalEpop }}</td>
+              <td v-for="c in CATEGORY_COLUMNS" :key="c" class="p-2 border border-slate-700 text-center">{{ fmt(report.totals.categories?.[c]) }}</td>
+              <td class="p-2 border border-slate-700 text-center">{{ fmt(report.totals.totalEpop) }}</td>
             </tr>
           </tbody>
         </table>
