@@ -450,10 +450,11 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
       </div>
       <div class="bg-white border border-stone-200 rounded-lg p-3.5">
         <p class="text-xs text-stone-400 mb-1.5">Visitors</p>
-        <p class="text-2xl text-slate-800">
-          {{ stats.visitors }}
-          <span v-if="stats.bibleStudyGuests" class="text-xs text-stone-400">+ {{ stats.bibleStudyGuests }} Bible Study</span>
-        </p>
+        <p class="text-2xl text-slate-800">{{ stats.visitors }}</p>
+      </div>
+      <div class="bg-white border border-stone-200 rounded-lg p-3.5">
+        <p class="text-xs text-stone-400 mb-1.5">Bible Study (non-members)</p>
+        <p class="text-2xl text-slate-800">{{ stats.bibleStudyGuests }}</p>
       </div>
     </section>
 

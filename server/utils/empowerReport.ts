@@ -85,13 +85,17 @@ async function populationAsOf(monthStart: Date, asOf: Date) {
 
   const counts: Record<string, number> = Object.fromEntries(CATEGORY_COLUMNS.map((c) => [c, 0]));
   let unassigned = 0;
+  // Who is actually inside Total EPOP — the Running Total deducts from these.
+  const epopIds = new Set<string>();
   for (const m of members) {
     const mapped = mapCategory(m.category);
-    if (mapped) counts[mapped]++;
-    else unassigned++;
+    if (mapped) {
+      counts[mapped]++;
+      epopIds.add(m.id);
+    } else unassigned++;
   }
   const totalEpop = Object.values(counts).reduce((a, b) => a + b, 0);
-  return { counts, totalEpop, unassigned };
+  return { counts, totalEpop, unassigned, epopIds };
 }
 
 async function firstTimerCounts(start: Date, end: Date) {
@@ -112,23 +116,26 @@ async function bibleStudyStats(start: Date, end: Date) {
     include: { attendances: { where: { present: true } } },
   });
   const conducted = events.length;
+  // Attendees is every check-in across the week's sessions, so someone who
+  // came to 3 sessions counts 3 times. attendeeIds is the unique people,
+  // used for the Running Total deduction.
+  let attendees = 0;
   const attendeeIds = new Set<string>();
-  events.forEach((e) => e.attendances.forEach((a) => attendeeIds.add(a.memberId)));
-  return { conducted, attendees: attendeeIds.size, attendeeIds };
+  events.forEach((e) => e.attendances.forEach((a) => {
+    attendees++;
+    attendeeIds.add(a.memberId);
+  }));
+  return { conducted, attendees, attendeeIds };
 }
 
-// Members who attended BOTH a Sunday service (SERVICE event) and Bible Study
-// in the same cut-off week — the Running Total formula treats this overlap
-// as the only thing to deduct from that week's EPOP, since a Bible Study
-// attendee who never made it to Sunday is still only counted once in EPOP.
-async function bothActivitiesCount(start: Date, end: Date, bsAttendeeIds: Set<string>) {
-  if (bsAttendeeIds.size === 0) return 0;
-  const serviceAttendances = await prisma.attendance.findMany({
-    where: { present: true, memberId: { in: [...bsAttendeeIds] }, event: { type: "SERVICE", date: { gte: start, lte: end } } },
-    select: { memberId: true },
-    distinct: ["memberId"],
-  });
-  return serviceAttendances.length;
+// Running Total = that week's Total EPOP minus every member in EPOP who was
+// checked in to at least one Bible Study that week (each counted once, however
+// many sessions they attended). Bible Study-type people and visitors aren't in
+// EPOP, so there's nothing to deduct for them.
+function bibleStudyDeduction(epopIds: Set<string>, bsAttendeeIds: Set<string>) {
+  let n = 0;
+  for (const id of bsAttendeeIds) if (epopIds.has(id)) n++;
+  return n;
 }
 
 export async function computeEmpowerReport(month: string, pastorName = "") {
@@ -171,12 +178,11 @@ export async function computeEmpowerReport(month: string, pastorName = "") {
       bibleStudyStats(p.start, p.end),
       hasElapsed ? populationAsOf(monthStart, p.end) : Promise.resolve(null),
     ]);
-    const bothCount = hasElapsed ? await bothActivitiesCount(p.start, p.end, bs.attendeeIds) : 0;
     if (pop) lastElapsedPopulation = { categories: pop.counts, totalEpop: pop.totalEpop, unassigned: pop.unassigned };
     periods.push({
       label: p.label,
       firstTimerAllOfficial: ft.allOfficial,
-      runningTotal: pop ? pop.totalEpop - bothCount : null,
+      runningTotal: pop ? pop.totalEpop - bibleStudyDeduction(pop.epopIds, bs.attendeeIds) : null,
       actualBSConducted: bs.conducted,
       firstTimerBS: ft.bibleStudy,
       attendees: bs.attendees,
