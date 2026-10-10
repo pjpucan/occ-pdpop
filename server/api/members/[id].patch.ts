@@ -50,6 +50,7 @@ export default defineEventHandler(async (event) => {
       guestType: body.isVisitor ? body.guestType || "MEMBER" : null,
       isFirstTimer: !!body.isFirstTimer,
       isWalkIn: !!body.isFirstTimer && !!body.isWalkIn,
+      walkInSource: body.isFirstTimer && body.isWalkIn ? body.walkInSource || null : null,
       invitedByName: body.isFirstTimer && !body.isWalkIn ? body.invitedByName || null : null,
       birthday: body.birthday ? new Date(body.birthday) : null,
     },

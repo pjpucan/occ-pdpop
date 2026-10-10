@@ -11,7 +11,15 @@ export default defineEventHandler(async (event) => {
 
   const events = await prisma.event.findMany({
     where,
-    include: { _count: { select: { attendances: { where: { present: true } } } } },
+    include: {
+      _count: { select: { attendances: { where: { present: true } } } },
+      // Bible Study check-ins (who + role) so the Attendance page can apply the
+      // once-per-week facilitator rule to its week totals.
+      attendances: {
+        where: { present: true, event: { type: "BIBLE_STUDY" } },
+        select: { memberId: true, role: true, member: { select: { firstName: true, lastName: true } } },
+      },
+    },
     orderBy: { date: "desc" },
   });
 
@@ -24,5 +32,8 @@ export default defineEventHandler(async (event) => {
     preacherName: e.preacherName,
     topic: e.topic,
     presentCount: e._count.attendances,
+    checkIns: e.type === "BIBLE_STUDY"
+      ? e.attendances.map((a) => ({ memberId: a.memberId, role: a.role, name: `${a.member.firstName} ${a.member.lastName}` }))
+      : [],
   }));
 });

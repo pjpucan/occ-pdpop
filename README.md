@@ -35,7 +35,9 @@ Manage the Bible study groups and their leaders.
 
 ### Reports
 A monthly attendance summary: totals per Sunday (morning/afternoon), and
-service and Bible study attendance by member category.
+service and Bible study attendance by member category. It also lists the
+month's first timers and how they found the church: invited by someone, or a
+walk-in who heard about Oaks on Facebook, Instagram, YouTube or elsewhere.
 
 ### Empower Report
 Builds the monthly Empower Global Statistical Report (first timers, running

@@ -48,6 +48,9 @@ const leaderNames = computed(() => leaders.value
 
 const eventTypeFilter = ref("All");
 const sessionFilter = ref("All");
+// The session dropdown only shows for Sunday Celebration — reset it when it
+// hides so it can't keep filtering out of sight.
+watch(eventTypeFilter, (type) => { if (type !== "SERVICE") sessionFilter.value = "All"; });
 const filteredEvents = computed(() => events.value.filter((e) => {
   if (eventTypeFilter.value !== "All" && e.type !== eventTypeFilter.value) return false;
   // Morning/Afternoon only applies to services — don't let it hide Bible studies.
@@ -63,7 +66,8 @@ const eventSections = computed(() => [
   .filter((sec) => eventTypeFilter.value === "All" || eventTypeFilter.value === sec.type)
   .map((sec) => {
     const list = filteredEvents.value.filter((e) => e.type === sec.type);
-    return { ...sec, events: list, weeks: groupByWeek(list), totalPresent: list.reduce((n, e) => n + e.presentCount, 0) };
+    const weeks = groupByWeek(list);
+    return { ...sec, events: list, weeks, totalPresent: weeks.reduce((n, w) => n + w.totalPresent, 0) };
   }));
 
 // Monday–Sunday weeks, the same cut-off periods as the Empower report.
@@ -89,10 +93,39 @@ function groupByWeek(list) {
     if (!weeks.has(key)) weeks.set(key, { key, label: weekLabel(start), events: [], totalPresent: 0 });
     const w = weeks.get(key);
     w.events.push(e);
-    w.totalPresent += e.presentCount;
   }
   // Events arrive newest-first, so the weeks already come out newest-first.
-  return [...weeks.values()];
+  return [...weeks.values()].map((w) => ({ ...w, totalPresent: weekPresent(w.events), deductions: weekDeductions(w.events) }));
+}
+
+// Who weekPresent() counted once (Bible Study only), for the note under the
+// week total. Mirrors leaderDeductions() in server/utils/empowerReport.ts.
+function weekDeductions(list) {
+  if (list[0]?.type !== "BIBLE_STUDY") return [];
+  const checkIns = list.flatMap((e) => e.checkIns || []);
+  const leaders = new Set(checkIns.filter((a) => a.role === "FACILITATOR" || a.role === "CO_FACILITATOR").map((a) => a.memberId));
+  const byLeader = new Map();
+  for (const a of checkIns) {
+    if (!leaders.has(a.memberId)) continue;
+    const v = byLeader.get(a.memberId) ?? { name: a.name, checkIns: 0 };
+    v.checkIns++;
+    byLeader.set(a.memberId, v);
+  }
+  return [...byLeader.values()]
+    .filter((v) => v.checkIns > 1)
+    .map((v) => ({ ...v, removed: v.checkIns - 1 }))
+    .sort((a, b) => b.removed - a.removed || a.name.localeCompare(b.name));
+}
+
+// Week total. Services: just the sum. Bible Study: anyone who facilitated or
+// co-facilitated that week counts once for the whole week; everyone else
+// counts every session. Mirrors weeklyBibleStudyAttendees() in
+// server/utils/empowerReport.ts so this matches the Empower report.
+function weekPresent(list) {
+  if (list[0]?.type !== "BIBLE_STUDY") return list.reduce((n, e) => n + e.presentCount, 0);
+  const checkIns = list.flatMap((e) => e.checkIns || []);
+  const leaders = new Set(checkIns.filter((a) => a.role === "FACILITATOR" || a.role === "CO_FACILITATOR").map((a) => a.memberId));
+  return checkIns.filter((a) => !leaders.has(a.memberId)).length + leaders.size;
 }
 
 function formatDate(iso) {
@@ -107,6 +140,8 @@ function formatFullName(member) {
 // isn't a real event. Instead "Create & take attendance" opens the check-in
 // screen against a draft (never persisted), and the Event row is only
 // POSTed at Save time, and only if at least one person is checked.
+// Where a walk-in first timer heard about Oaks.
+const WALK_IN_SOURCES = ["Facebook", "Instagram", "YouTube", "Other"];
 const EVENT_TYPE_LABELS = { SERVICE: "Sunday Celebration", BIBLE_STUDY: "Bible Study" };
 const PREACHER_OPTIONS = ["Ptr. Rex Chris Angeles", "Rev. Mac Ortiz"];
 
@@ -161,7 +196,7 @@ function blankAddPersonForm() {
     first: "", last: "", category: "KIDS", birthday: "",
     inBibleStudy: false, bibleStudyGroup: "", volunteer: false, ministry: "",
     personType: "MEMBER", isVisitor: false, guestType: "MEMBER",
-    isFirstTimer: false, isWalkIn: false, invitedByName: "",
+    isFirstTimer: false, isWalkIn: false, walkInSource: "", invitedByName: "",
     activeLeader: "", potentialLeader: "",
   };
 }
@@ -187,6 +222,7 @@ function applyPersonType(form) {
   if (form.personType === "MEMBER") {
     form.isFirstTimer = false;
     form.isWalkIn = false;
+    form.walkInSource = "";
     form.invitedByName = "";
   }
 }
@@ -532,6 +568,13 @@ function closeView() {
                     <input type="checkbox" v-model="addPersonForm.isWalkIn" /> Walk-in
                   </label>
                 </div>
+                <div v-if="addPersonForm.isWalkIn">
+                  <label class="block text-xs text-stone-400 font-medium mb-1.5">Heard about us from</label>
+                  <select v-model="addPersonForm.walkInSource" :class="[inputCls, 'w-full']">
+                    <option value="">Where did they hear about us?</option>
+                    <option v-for="src in WALK_IN_SOURCES" :key="src" :value="src">{{ src }}</option>
+                  </select>
+                </div>
                 <div v-if="!addPersonForm.isWalkIn">
                   <label class="block text-xs text-stone-400 font-medium mb-1.5">Invited by</label>
                   <input
@@ -602,7 +645,7 @@ function closeView() {
           <option value="SERVICE">Sunday Celebration</option>
           <option value="BIBLE_STUDY">Bible Study</option>
         </select>
-        <select v-if="eventTypeFilter !== 'BIBLE_STUDY'" v-model="sessionFilter" :class="inputCls">
+        <select v-if="eventTypeFilter === 'SERVICE'" v-model="sessionFilter" :class="inputCls">
           <option value="All">All sessions</option>
           <option value="MORNING">Morning</option>
           <option value="AFTERNOON">Afternoon</option>
@@ -657,6 +700,22 @@ function closeView() {
                 </td>
                 <td class="px-2.5 py-1.5 font-semibold text-slate-800">{{ w.totalPresent }} Present</td>
                 <td></td>
+              </tr>
+              <!-- Info only: who the once-per-week leader rule took off the week total -->
+              <tr v-if="w.deductions.length">
+                <td colspan="4" class="px-3 pt-1 pb-4">
+                  <div class="flex gap-2 items-start bg-amber-50 border border-amber-200 text-amber-900 rounded-md px-3.5 py-2.5 text-xs leading-relaxed">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="shrink-0 mt-px" viewBox="0 0 16 16"><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.469l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2"/></svg>
+                    <div>
+                      <p class="m-0 font-semibold">Note: leaders counted once this week</p>
+                      <p class="m-0 mt-0.5">
+                        Facilitators and co-facilitators count as 1 for the week, however many sessions they led or attended.
+                        Taken off the week total:
+                        {{ w.deductions.map((d) => `${d.name} ${d.checkIns} → 1 (−${d.removed})`).join(", ") }}
+                      </p>
+                    </div>
+                  </div>
+                </td>
               </tr>
               </template>
               <tr v-if="!loadingEvents && sec.events.length === 0">

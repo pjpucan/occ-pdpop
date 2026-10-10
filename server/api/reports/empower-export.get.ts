@@ -113,11 +113,8 @@ export default defineEventHandler(async (event) => {
   ws.getColumn(1).width = 20;
   for (let c = 2; c <= 15; c++) ws.getColumn(c).width = 13;
 
-  if (report.unassignedTotal > 0) {
-    rowIndex++;
-    ws.getCell(rowIndex, 1).value = `Note: ${report.unassignedTotal} member(s) have no category assigned ("Unassigned") and are excluded from the population columns above.`;
-    ws.getCell(rowIndex, 1).font = { italic: true, color: { argb: "FFB45309" } };
-  }
+  // The page's notes (Unassigned members, leaders counted once in Attendees)
+  // are info for whoever prepares the report — not part of the submitted file.
 
   const buffer = await wb.xlsx.writeBuffer();
   setResponseHeader(event, "content-type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

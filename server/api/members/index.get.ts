@@ -25,6 +25,7 @@ export default defineEventHandler(async () => {
     isFirstTimer: m.isFirstTimer,
     invitedByName: m.invitedByName,
     isWalkIn: m.isWalkIn,
+    walkInSource: m.walkInSource,
     birthday: m.birthday,
     bibleStudyGroup: m.bibleStudy?.group.name ?? null,
     volunteer: !!m.volunteer,
