@@ -66,6 +66,8 @@ model Member {
   isFirstTimer     Boolean       @default(false)
   invitedByName    String?
   isWalkIn         Boolean       @default(false)
+  // Walk-ins only: where they heard about Oaks — Facebook, Instagram, YouTube or Other.
+  walkInSource     String?
   birthday         DateTime?
   joinedAt         DateTime      @default(now())
   // Set when an admin re-enables an Inactive member — restarts their

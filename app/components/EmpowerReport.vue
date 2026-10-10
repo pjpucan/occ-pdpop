@@ -132,6 +132,24 @@ function fmt(v) {
         </table>
       </div>
 
+      <!-- Info only: who the once-per-week leader rule took off Attendees -->
+      <div v-if="report.periods.some((p) => p.attendeeDeductions?.length)" class="flex gap-2 items-start bg-amber-50 border border-amber-200 text-amber-900 rounded-md px-3.5 py-3 text-xs leading-relaxed mt-4">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="shrink-0 mt-px" viewBox="0 0 16 16"><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.469l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2"/></svg>
+        <div>
+        <p class="m-0 font-semibold">Note on Attendees: leaders counted once per week</p>
+        <p class="m-0 mt-0.5 mb-1">
+          Facilitators and co-facilitators count as 1 for the week, however many sessions they led or attended. Taken off:
+        </p>
+        <ul class="m-0 pl-4 list-disc">
+          <li v-for="p in report.periods.filter((p) => p.attendeeDeductions?.length)" :key="p.label">
+            <span class="font-semibold">{{ p.label }}</span>
+            (−{{ p.attendeeDeductions.reduce((n, d) => n + d.removed, 0) }}):
+            {{ p.attendeeDeductions.map((d) => `${d.name} ${d.checkIns} → 1 (−${d.removed})`).join(", ") }}
+          </li>
+        </ul>
+        </div>
+      </div>
+
       <p v-if="report.unassignedTotal > 0" class="text-orange-700 text-xs mt-2.5">
         Note: {{ report.unassignedTotal }} member(s) have no category assigned ("Unassigned") and are excluded from the population columns above.
       </p>

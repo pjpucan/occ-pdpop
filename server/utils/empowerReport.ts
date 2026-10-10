@@ -113,19 +113,48 @@ async function firstTimerCounts(start: Date, end: Date) {
 async function bibleStudyStats(start: Date, end: Date) {
   const events = await prisma.event.findMany({
     where: { type: "BIBLE_STUDY", date: { gte: start, lte: end } },
-    include: { attendances: { where: { present: true } } },
+    include: { attendances: { where: { present: true }, include: { member: { select: { firstName: true, lastName: true } } } } },
   });
   const conducted = events.length;
-  // Attendees is every check-in across the week's sessions, so someone who
-  // came to 3 sessions counts 3 times. attendeeIds is the unique people,
-  // used for the Running Total deduction.
-  let attendees = 0;
-  const attendeeIds = new Set<string>();
-  events.forEach((e) => e.attendances.forEach((a) => {
-    attendees++;
-    attendeeIds.add(a.memberId);
-  }));
-  return { conducted, attendees, attendeeIds };
+  const checkIns = events.flatMap((e) => e.attendances.map((a) => ({
+    memberId: a.memberId, role: a.role, name: `${a.member.firstName} ${a.member.lastName}`,
+  })));
+  // attendeeIds is the unique people, used for the Running Total deduction.
+  const attendeeIds = new Set(checkIns.map((a) => a.memberId));
+  return {
+    conducted,
+    attendees: weeklyBibleStudyAttendees(checkIns),
+    attendeeDeductions: leaderDeductions(checkIns),
+    attendeeIds,
+  };
+}
+
+// Who the once-per-week rule took off the Attendees count, for the note under
+// the report: each leader with more than one check-in that week, how many
+// check-ins they had, and how many were removed.
+export function leaderDeductions(checkIns: { memberId: string; role: string | null; name: string }[]) {
+  const byLeader = new Map<string, { name: string; checkIns: number }>();
+  const leaders = new Set(checkIns.filter((a) => a.role === "FACILITATOR" || a.role === "CO_FACILITATOR").map((a) => a.memberId));
+  for (const a of checkIns) {
+    if (!leaders.has(a.memberId)) continue;
+    const v = byLeader.get(a.memberId) ?? { name: a.name, checkIns: 0 };
+    v.checkIns++;
+    byLeader.set(a.memberId, v);
+  }
+  return [...byLeader.values()]
+    .filter((v) => v.checkIns > 1)
+    .map((v) => ({ ...v, removed: v.checkIns - 1 }))
+    .sort((a, b) => b.removed - a.removed || a.name.localeCompare(b.name));
+}
+
+// Attendees for one week: every check-in counts, so a regular attendee who
+// came to 3 sessions counts 3 times — except anyone who facilitated or
+// co-facilitated a session that week, who counts once for the whole week no
+// matter how many sessions they led or attended. (Same rule as the Bible
+// Study week totals on the Attendance page.)
+export function weeklyBibleStudyAttendees(checkIns: { memberId: string; role: string | null }[]) {
+  const leaders = new Set(checkIns.filter((a) => a.role === "FACILITATOR" || a.role === "CO_FACILITATOR").map((a) => a.memberId));
+  return checkIns.filter((a) => !leaders.has(a.memberId)).length + leaders.size;
 }
 
 // Running Total = that week's Total EPOP minus every member in EPOP who was
@@ -186,6 +215,7 @@ export async function computeEmpowerReport(month: string, pastorName = "") {
       actualBSConducted: bs.conducted,
       firstTimerBS: ft.bibleStudy,
       attendees: bs.attendees,
+      attendeeDeductions: bs.attendeeDeductions,
       categories: pop?.counts ?? null,
       totalEpop: pop?.totalEpop ?? null,
       unassigned: pop?.unassigned ?? null,

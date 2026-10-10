@@ -158,7 +158,7 @@ function blankForm() {
     first: "", last: "", category: "KIDS", birthday: "",
     inBibleStudy: false, bibleStudyGroup: "", volunteer: false, ministry: "",
     personType: "MEMBER", isVisitor: false, guestType: "MEMBER",
-    isFirstTimer: false, isWalkIn: false, invitedByName: "",
+    isFirstTimer: false, isWalkIn: false, walkInSource: "", invitedByName: "",
     activeLeader: "", potentialLeader: "",
   };
 }
@@ -183,6 +183,8 @@ function buildPayload(form) {
 
 // One "Type" dropdown drives the two stored fields: Member = not a guest,
 // Visitor = attends services but isn't a member, Bible Study = Bible-study-only.
+// Where a walk-in first timer heard about Oaks.
+const WALK_IN_SOURCES = ["Facebook", "Instagram", "YouTube", "Other"];
 const PERSON_TYPE_LABELS = { MEMBER: "Member", VISITOR: "Visitor", BIBLE_STUDY: "Bible Study" };
 function personTypeOf(m) {
   if (!m.isVisitor) return "MEMBER";
@@ -194,6 +196,7 @@ function applyPersonType(form) {
   if (form.personType === "MEMBER") {
     form.isFirstTimer = false;
     form.isWalkIn = false;
+    form.walkInSource = "";
     form.invitedByName = "";
   }
 }
@@ -231,7 +234,7 @@ function startEdit(m) {
     inBibleStudy: !!m.bibleStudyGroup, bibleStudyGroup: m.bibleStudyGroup || "",
     volunteer: m.volunteer, ministry: m.ministry || "",
     personType: personTypeOf(m), isVisitor: m.isVisitor, guestType: m.isVisitor ? personTypeOf(m) : "MEMBER",
-    isFirstTimer: m.isFirstTimer || false, isWalkIn: m.isWalkIn || false, invitedByName: m.invitedByName || "",
+    isFirstTimer: m.isFirstTimer || false, isWalkIn: m.isWalkIn || false, walkInSource: m.walkInSource || "", invitedByName: m.invitedByName || "",
     activeLeader: m.activeLeader || "", potentialLeader: m.potentialLeader || "",
   });
 }
@@ -410,6 +413,13 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
                 <input type="checkbox" v-model="addForm.isWalkIn" /> Walk-in
               </label>
             </div>
+            <div v-if="addForm.isWalkIn">
+              <label class="block text-xs text-stone-400 font-medium mb-1.5">Heard about us from</label>
+              <select v-model="addForm.walkInSource" :class="[inputCls, 'w-full']">
+                <option value="">Where did they hear about us?</option>
+                <option v-for="src in WALK_IN_SOURCES" :key="src" :value="src">{{ src }}</option>
+              </select>
+            </div>
             <div v-if="!addForm.isWalkIn">
               <label class="block text-xs text-stone-400 font-medium mb-1.5">Invited by</label>
               <input
@@ -428,11 +438,11 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
 
     <section class="grid gap-3 mb-5" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
       <div class="bg-white border border-stone-200 rounded-lg p-3.5">
-        <p class="text-xs text-stone-400 mb-1.5">Total population</p>
+        <p class="text-xs text-stone-400 mb-1.5">Total Population</p>
         <p class="text-2xl text-slate-800">{{ stats.total }}</p>
       </div>
       <div class="bg-white border border-stone-200 rounded-lg p-3.5">
-        <p class="text-xs text-stone-400 mb-1.5">Regular gathering</p>
+        <p class="text-xs text-stone-400 mb-1.5">Regular Gathering</p>
         <p class="text-2xl text-slate-800">{{ stats.regular }}</p>
       </div>
       <div class="bg-white border border-stone-200 rounded-lg p-3.5">
@@ -453,7 +463,7 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
         <p class="text-2xl text-slate-800">{{ stats.visitors }}</p>
       </div>
       <div class="bg-white border border-stone-200 rounded-lg p-3.5">
-        <p class="text-xs text-stone-400 mb-1.5">Bible Study (non-members)</p>
+        <p class="text-xs text-stone-400 mb-1.5">Bible Study (Non-Members)</p>
         <p class="text-2xl text-slate-800">{{ stats.bibleStudyGuests }}</p>
       </div>
     </section>
@@ -482,9 +492,9 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
       </select>
       <span class="ml-auto flex items-center text-sm text-stone-400 flex flex-col w-[135px]">
         <button v-if="hasFilters" class="text-orange-700 hover:underline" @click="clearFilters">
-          Clear filters
+          Clear Filters
         </button>
-        {{ loading ? "Loading…" : `${filtered.length} of ${members.length} members` }}
+        {{ loading ? "Loading…" : `${filtered.length} of ${members.length} Members` }}
       </span>
     </div>
 
@@ -600,6 +610,10 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
                         <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
                           <input type="checkbox" v-model="editForm.isWalkIn" /> Walk-in
                         </label>
+                        <select v-if="editForm.isWalkIn" v-model="editForm.walkInSource" :class="inputCls">
+                          <option value="">Where did they hear about us?</option>
+                          <option v-for="src in WALK_IN_SOURCES" :key="src" :value="src">{{ src }}</option>
+                        </select>
                         <input
                           v-if="!editForm.isWalkIn"
                           v-model="editForm.invitedByName"

@@ -79,30 +79,90 @@ const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded 
 
       <section class="grid gap-3 mb-5" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
         <div class="bg-white border border-stone-200 rounded-lg p-3.5">
-          <p class="text-xs text-stone-400 mb-1.5">Total attended (services)</p>
+          <p class="text-xs text-stone-400 mb-1.5">Total Attended (Services)</p>
           <p class="text-2xl text-slate-800">{{ report.services.totalAttended }}</p>
         </div>
         <div class="bg-white border border-stone-200 rounded-lg p-3.5">
-          <p class="text-xs text-stone-400 mb-1.5">Morning attendance</p>
+          <p class="text-xs text-stone-400 mb-1.5">Morning Attendance</p>
           <p class="text-2xl text-slate-800">{{ report.services.bySession.MORNING }}</p>
         </div>
         <div class="bg-white border border-stone-200 rounded-lg p-3.5">
-          <p class="text-xs text-stone-400 mb-1.5">Afternoon attendance</p>
+          <p class="text-xs text-stone-400 mb-1.5">Afternoon Attendance</p>
           <p class="text-2xl text-slate-800">{{ report.services.bySession.AFTERNOON }}</p>
+          <!-- Highlight who came ONLY in the afternoon (not already counted in the morning) -->
+          <div v-if="report.services.bySession.AFTERNOON" class="mt-2.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-md px-2.5 py-2">
+            <p class="m-0 text-xl font-semibold leading-none">{{ report.services.bySession.AFTERNOON - report.services.afternoonAlsoMorning }}</p>
+            <p class="m-0 mt-1 text-xs">afternoon only</p>
+          </div>
+          <p v-if="report.services.afternoonAlsoMorning" class="m-0 mt-1.5 text-xs text-stone-400">
+            {{ report.services.afternoonAlsoMorning }} also attended the morning service
+          </p>
         </div>
         <div class="bg-white border border-stone-200 rounded-lg p-3.5">
-          <p class="text-xs text-stone-400 mb-1.5">Services held</p>
+          <p class="text-xs text-stone-400 mb-1.5">Services Held</p>
           <p class="text-2xl text-slate-800">{{ report.services.eventCount }}</p>
         </div>
         <div class="bg-white border border-stone-200 rounded-lg p-3.5">
-          <p class="text-xs text-stone-400 mb-1.5">Bible studies conducted</p>
+          <p class="text-xs text-stone-400 mb-1.5">Bible Studies Conducted</p>
           <p class="text-2xl text-slate-800">{{ report.bibleStudy.sessionsConducted }}</p>
         </div>
         <div class="bg-white border border-stone-200 rounded-lg p-3.5">
-          <p class="text-xs text-stone-400 mb-1.5">Bible study attendance</p>
+          <p class="text-xs text-stone-400 mb-1.5">Bible Study Attendance</p>
           <p class="text-2xl text-slate-800">{{ report.bibleStudy.totalAttended }}</p>
+          <!-- Who attended (each person counted once): Members vs. Bible Study-only people -->
+          <div v-if="report.bibleStudy.totalAttended" class="mt-2.5 flex flex-col gap-1.5 text-xs">
+            <div class="flex justify-between bg-sky-50 border border-sky-100 text-sky-900 rounded-md px-2.5 py-1.5">
+              <span>Members</span><span class="font-semibold">{{ report.bibleStudy.membersAttended }}</span>
+            </div>
+            <div class="flex justify-between bg-stone-50 border border-stone-200 text-stone-700 rounded-md px-2.5 py-1.5">
+              <span>Bible Study Only</span><span class="font-semibold">{{ report.bibleStudy.bibleStudyOnlyAttended }}</span>
+            </div>
+            <div v-if="report.bibleStudy.visitorsAttended" class="flex justify-between bg-orange-50 border border-orange-200 text-orange-900 rounded-md px-2.5 py-1.5">
+              <span>Visitors</span><span class="font-semibold">{{ report.bibleStudy.visitorsAttended }}</span>
+            </div>
+          </div>
+        </div>
+        <!-- First timers added this month -->
+        <div class="bg-white border border-stone-200 rounded-lg p-3.5">
+          <p class="text-xs text-stone-400 mb-1.5">First Timers</p>
+          <p class="text-2xl text-slate-800">{{ report.firstTimers.total }}</p>
         </div>
       </section>
+
+      <!-- First timers added this month, and how they found the church -->
+      <h2 class="text-lg text-slate-800 mb-2.5">First timers this month</h2>
+      <div class="bg-white border border-stone-200 rounded-lg mb-6">
+        <table class="w-full border-collapse text-sm">
+          <thead>
+            <tr class="text-left text-xs text-stone-400">
+              <th class="p-2.5 font-medium">Name</th>
+              <th class="p-2.5 font-medium">Added</th>
+              <th class="p-2.5 font-medium">How they found us</th>
+              <th class="p-2.5 font-medium">Invited by</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="f in report.firstTimers.list" :key="f.id" class="border-t border-stone-100">
+              <td class="p-2.5">{{ f.first }} {{ f.last }}</td>
+              <td class="p-2.5">{{ new Date(f.joinedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) }}</td>
+              <td class="p-2.5">
+                <span v-if="f.source === 'WALK_IN'" class="text-xs font-medium bg-orange-50 text-orange-700 rounded-full px-2 py-0.5">
+                  Walk-in<template v-if="f.walkInSource"> · {{ f.walkInSource }}</template>
+                </span>
+                <span v-else-if="f.source === 'INVITED'" class="text-xs font-medium bg-emerald-50 text-emerald-700 rounded-full px-2 py-0.5">Invited</span>
+                <span v-else class="text-stone-300">Not recorded</span>
+              </td>
+              <td class="p-2.5">
+                <span v-if="f.invitedByName">{{ f.invitedByName }}</span>
+                <span v-else class="text-stone-300">—</span>
+              </td>
+            </tr>
+            <tr v-if="report.firstTimers.list.length === 0">
+              <td colspan="4" class="text-center py-7 text-stone-400">No first timers added this month.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <h2 class="text-lg text-slate-800 mb-2.5">Attendance by Sunday</h2>
       <div class="bg-white border border-stone-200 rounded-lg mb-5">
