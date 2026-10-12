@@ -53,12 +53,23 @@ export default defineEventHandler(async (event) => {
 
   const bySession = { MORNING: 0, AFTERNOON: 0 };
   const byDate: Record<string, { morning: number; afternoon: number }> = {};
+  // Who attended each Sunday, and which service(s) — for the Sunday "View" modal.
+  type SundayAttendee = { id: string; first: string; last: string; category: string; isVisitor: boolean; guestType: string | null; morning: boolean; afternoon: boolean };
+  const attendeesByDate: Record<string, Map<string, SundayAttendee>> = {};
   let totalAttended = 0;
 
   for (const e of serviceEvents) {
     const dateKey = e.date.toISOString().slice(0, 10);
     byDate[dateKey] ??= { morning: 0, afternoon: 0 };
+    attendeesByDate[dateKey] ??= new Map();
     for (const a of e.attendances) {
+      const who = attendeesByDate[dateKey].get(a.memberId) ?? {
+        id: a.memberId, first: a.member.firstName, last: a.member.lastName, category: a.member.category,
+        isVisitor: a.member.isVisitor, guestType: a.member.guestType, morning: false, afternoon: false,
+      };
+      if (e.session === "MORNING") who.morning = true;
+      if (e.session === "AFTERNOON") who.afternoon = true;
+      attendeesByDate[dateKey].set(a.memberId, who);
       totalAttended++;
       if (e.session) bySession[e.session]++;
       if (e.session === "MORNING") byDate[dateKey].morning++;
@@ -83,7 +94,11 @@ export default defineEventHandler(async (event) => {
   }
 
   const byWeek = Object.entries(byDate)
-    .map(([date, v]) => ({ date, morning: v.morning, afternoon: v.afternoon, total: v.morning + v.afternoon }))
+    .map(([date, v]) => ({
+      date, morning: v.morning, afternoon: v.afternoon, total: v.morning + v.afternoon,
+      attendees: [...(attendeesByDate[date]?.values() ?? [])]
+        .sort((x, y) => x.last.localeCompare(y.last) || x.first.localeCompare(y.first)),
+    }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const serviceCategoryStats = tallyByCategory(serviceEvents.flatMap((e) => e.attendances));

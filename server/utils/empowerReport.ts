@@ -1,5 +1,4 @@
 import { prisma } from "~~/server/utils/prisma";
-import { inactiveCutoff, isInactive, serviceAttendeesBetween } from "~~/server/utils/activity";
 
 // "Empower Global Statistical Report" — a standardized monthly report format
 // this church submits upward to its network. Cut-off periods are Monday-
@@ -48,54 +47,39 @@ function buildPeriods(year: number, monthIndex: number) {
   return periods;
 }
 
-// Cumulative population by report-column, as of `asOf` (end of day).
-// `Member.joinedAt` defaults to "now" at row-creation time, so every
-// bulk-imported pre-existing member shares one arbitrary seed timestamp —
-// it's only a meaningful "date this person joined" for guests/first-timers
-// added through the app's Guest workflow. So historical population is
-// reconstructed as: everyone who *isn't* a first-timer tracked this month
-// (the stable pre-existing base, regardless of their literal DB timestamp),
-// plus first-timers actually added between the start of the report month
-// and `asOf`. This is also how "Total EPOP" is derived — it's just the sum
-// of these columns, not a separately-tracked figure.
+// EPOP by report-column, as of `asOf` (end of day), per the Empower
+// guidelines: each cut-off's EPOP = the previous cut-off's EPOP + that
+// cut-off's first timers (Weekly General and Bible Study). EPOP only grows —
+// nobody is subtracted (e.g. for being Inactive).
 //
-// Guests (isVisitor) are never part of the population — they're still
-// counted in the First Timer columns, just not in EPOP. Neither are members
-// who were Inactive as of `asOf` (no Sunday service in the 3 months before
-// it — see server/utils/activity.ts).
-async function populationAsOf(monthStart: Date, asOf: Date) {
-  const cutoff = inactiveCutoff(asOf);
-  const [candidates, attended] = await Promise.all([
-    prisma.member.findMany({
-      where: {
-        isVisitor: false,
-        OR: [
-          { isFirstTimer: false },
-          { joinedAt: { lt: monthStart } },
-          { isFirstTimer: true, joinedAt: { gte: monthStart, lte: asOf } },
-        ],
-      },
-      select: { id: true, category: true, isVisitor: true, joinedAt: true, reactivatedAt: true },
-    }),
-    serviceAttendeesBetween(cutoff, asOf),
-  ]);
-  // Any service inside the window is enough to keep them active, so `asOf`
-  // stands in for "their last service" when they attended one.
-  const members = candidates.filter((m) => !isInactive(m, attended.has(m.id) ? asOf : undefined, cutoff, asOf));
+// So EPOP as of a date = the pre-existing base roster + every first timer
+// added up to that date:
+//   - Base: Members (not Visitors / Bible Study-type) who aren't first timers.
+//     `Member.joinedAt` for the bulk-imported roster is just the import time,
+//     so the base counts regardless of its timestamp.
+//   - First timers of ANY type (Member, Visitor or Bible Study), from the day
+//     they were added (joinedAt).
+// "Total EPOP" is just the sum of these columns.
+async function populationAsOf(asOf: Date) {
+  const members = await prisma.member.findMany({
+    where: {
+      OR: [
+        { isVisitor: false, isFirstTimer: false },
+        { isFirstTimer: true, joinedAt: { lte: asOf } },
+      ],
+    },
+    select: { category: true },
+  });
 
   const counts: Record<string, number> = Object.fromEntries(CATEGORY_COLUMNS.map((c) => [c, 0]));
   let unassigned = 0;
-  // Who is actually inside Total EPOP — the Running Total deducts from these.
-  const epopIds = new Set<string>();
   for (const m of members) {
     const mapped = mapCategory(m.category);
-    if (mapped) {
-      counts[mapped]++;
-      epopIds.add(m.id);
-    } else unassigned++;
+    if (mapped) counts[mapped]++;
+    else unassigned++;
   }
   const totalEpop = Object.values(counts).reduce((a, b) => a + b, 0);
-  return { counts, totalEpop, unassigned, epopIds };
+  return { counts, totalEpop, unassigned };
 }
 
 async function firstTimerCounts(start: Date, end: Date) {
@@ -157,14 +141,16 @@ export function weeklyBibleStudyAttendees(checkIns: { memberId: string; role: st
   return checkIns.filter((a) => !leaders.has(a.memberId)).length + leaders.size;
 }
 
-// Running Total = that week's Total EPOP minus every member in EPOP who was
-// checked in to at least one Bible Study that week (each counted once, however
-// many sessions they attended). Bible Study-type people and visitors aren't in
-// EPOP, so there's nothing to deduct for them.
-function bibleStudyDeduction(epopIds: Set<string>, bsAttendeeIds: Set<string>) {
-  let n = 0;
-  for (const id of bsAttendeeIds) if (epopIds.has(id)) n++;
-  return n;
+// Running Total (per the Empower guidelines): the combined attendance at the
+// church's gatherings in that cut-off period — Sunday Worship, Midweek,
+// Prayer Meeting, Prayer & Fasting, Kids service — i.e. every event that isn't
+// a Bible Study. It's every check-in in the period: someone at both the
+// morning and afternoon service counts twice, the same way the Attendance
+// page adds them up.
+async function serviceAttendance(start: Date, end: Date) {
+  return prisma.attendance.count({
+    where: { present: true, event: { type: { not: "BIBLE_STUDY" }, date: { gte: start, lte: end } } },
+  });
 }
 
 export async function computeEmpowerReport(month: string, pastorName = "") {
@@ -179,14 +165,23 @@ export async function computeEmpowerReport(month: string, pastorName = "") {
 
   const now = new Date();
 
-  const baseStats = await populationAsOf(monthStart, prevMonthEnd);
+  // BASE row = "previous month ending": the previous month's latest data —
+  // EPOP as of month end, plus Running Total, Actual BS Conducted and BS
+  // Attendees from its LAST cut-off period.
+  const prevPeriods = buildPeriods(prevMonthEnd.getUTCFullYear(), prevMonthEnd.getUTCMonth());
+  const prevLast = prevPeriods[prevPeriods.length - 1];
+  const [baseStats, baseRunningTotal, baseBS] = await Promise.all([
+    populationAsOf(prevMonthEnd),
+    prevLast ? serviceAttendance(prevLast.start, prevLast.end) : Promise.resolve(null),
+    prevLast ? bibleStudyStats(prevLast.start, prevLast.end) : Promise.resolve(null),
+  ]);
   const base = {
     label: `BASE: ${prevMonthLabel}`,
     firstTimerAllOfficial: null as number | null,
-    runningTotal: baseStats.totalEpop,
-    actualBSConducted: null as number | null,
+    runningTotal: baseRunningTotal as number | null,
+    actualBSConducted: (baseBS?.conducted ?? null) as number | null,
     firstTimerBS: null as number | null,
-    attendees: null as number | null,
+    attendees: (baseBS?.attendees ?? null) as number | null,
     categories: baseStats.counts as Record<string, number> | null,
     totalEpop: baseStats.totalEpop as number | null,
     unassigned: baseStats.unassigned as number | null,
@@ -202,16 +197,18 @@ export async function computeEmpowerReport(month: string, pastorName = "") {
   const periods = [];
   for (const p of periodsRaw) {
     const hasElapsed = p.end <= now;
-    const [ft, bs, pop] = await Promise.all([
+    const [ft, bs, runningTotal, pop] = await Promise.all([
       firstTimerCounts(p.start, p.end),
       bibleStudyStats(p.start, p.end),
-      hasElapsed ? populationAsOf(monthStart, p.end) : Promise.resolve(null),
+      serviceAttendance(p.start, p.end),
+      hasElapsed ? populationAsOf(p.end) : Promise.resolve(null),
     ]);
     if (pop) lastElapsedPopulation = { categories: pop.counts, totalEpop: pop.totalEpop, unassigned: pop.unassigned };
     periods.push({
       label: p.label,
       firstTimerAllOfficial: ft.allOfficial,
-      runningTotal: pop ? pop.totalEpop - bibleStudyDeduction(pop.epopIds, bs.attendeeIds) : null,
+      // Counts what's been recorded so far, like the Bible Study columns.
+      runningTotal,
       actualBSConducted: bs.conducted,
       firstTimerBS: ft.bibleStudy,
       attendees: bs.attendees,
@@ -222,10 +219,13 @@ export async function computeEmpowerReport(month: string, pastorName = "") {
     });
   }
 
+  // The month's latest Running Total: the most recent cut-off that has ended
+  // (a week in progress would show a partial count).
+  const elapsedPeriods = periods.filter((_, i) => periodsRaw[i].end <= now);
   const totals = {
     label: "TOTAL",
     firstTimerAllOfficial: periods.reduce((s, p) => s + p.firstTimerAllOfficial, 0),
-    runningTotal: (periods[periods.length - 1] ?? base).runningTotal,
+    runningTotal: (elapsedPeriods[elapsedPeriods.length - 1] ?? base).runningTotal,
     actualBSConducted: periods.reduce((s, p) => s + p.actualBSConducted, 0),
     firstTimerBS: periods.reduce((s, p) => s + p.firstTimerBS, 0),
     attendees: periods.reduce((s, p) => s + p.attendees, 0),
