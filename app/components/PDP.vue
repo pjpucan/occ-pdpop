@@ -273,8 +273,8 @@ async function reactivateMember(m) {
 
 function inactiveTitle(m) {
   return m.lastServiceDate
-    ? `No Sunday service attended since ${new Date(m.lastServiceDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`
-    : "No Sunday service attended in the last 3 months";
+    ? `No service attended since ${new Date(m.lastServiceDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`
+    : "No service attended in the last 3 months";
 }
 
 // --- export ---------------------------------------------------------------------

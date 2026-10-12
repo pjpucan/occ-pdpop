@@ -60,6 +60,34 @@ function closeView() {
   viewingCategory.value = null;
 }
 
+// --- view a Sunday's attendees modal -------------------------------------------
+const viewingSunday = ref(null);
+const sundaySearch = ref("");
+const sundayFilter = ref("ALL"); // ALL | MORNING | AFTERNOON | BOTH
+const sundayAttendees = computed(() => {
+  if (!viewingSunday.value) return [];
+  const q = sundaySearch.value.trim().toLowerCase();
+  return viewingSunday.value.attendees.filter((a) => {
+    if (q && !`${a.first} ${a.last}`.toLowerCase().includes(q)) return false;
+    if (sundayFilter.value === "MORNING") return a.morning;
+    if (sundayFilter.value === "AFTERNOON") return a.afternoon;
+    if (sundayFilter.value === "BOTH") return a.morning && a.afternoon;
+    return true;
+  });
+});
+function openSunday(row) {
+  viewingSunday.value = row;
+  sundaySearch.value = "";
+  sundayFilter.value = "ALL";
+}
+function closeSunday() {
+  viewingSunday.value = null;
+}
+function personTypeLabel(a) {
+  if (!a.isVisitor) return null;
+  return a.guestType === "BIBLE_STUDY" ? "Bible Study" : "Visitor";
+}
+
 const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded px-2 py-1";
 </script>
 
@@ -173,6 +201,7 @@ const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded 
               <th class="p-2.5 font-medium">Morning</th>
               <th class="p-2.5 font-medium">Afternoon</th>
               <th class="p-2.5 font-medium">Total</th>
+              <th class="p-2.5 font-medium text-center">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -181,9 +210,12 @@ const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded 
               <td class="p-2.5">{{ row.morning }}</td>
               <td class="p-2.5">{{ row.afternoon }}</td>
               <td class="p-2.5 font-medium">{{ row.total }}</td>
+              <td class="p-2.5 text-center">
+                <button :class="btnView" @click="openSunday(row)">View</button>
+              </td>
             </tr>
             <tr v-if="report.services.byWeek.length === 0">
-              <td colspan="4" class="text-center py-7 text-stone-400">No services recorded this month.</td>
+              <td colspan="5" class="text-center py-7 text-stone-400">No services recorded this month.</td>
             </tr>
           </tbody>
         </table>
@@ -268,6 +300,81 @@ const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded 
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+    <!-- Who attended a given Sunday, and which service(s) -->
+    <div v-if="viewingSunday" class="fixed inset-0 bg-slate-900/40 flex items-center justify-center p-4 z-20" @click.self="closeSunday">
+      <div class="bg-white rounded-lg max-w-2xl w-full max-h-[85vh] overflow-y-auto p-5">
+        <div class="flex justify-between items-start mb-3.5">
+          <div>
+            <p class="text-xs text-stone-400 m-0">Sunday Celebration</p>
+            <h2 class="text-xl text-slate-800 m-0">{{ formatWeekDate(viewingSunday.date) }}</h2>
+          </div>
+          <button class="text-stone-400 hover:text-slate-800 text-sm" @click="closeSunday">Close</button>
+        </div>
+
+        <div class="grid grid-cols-4 gap-2 mb-3.5 text-center">
+          <div class="border border-stone-200 rounded-md p-2">
+            <p class="text-xs text-stone-400 m-0">People</p>
+            <p class="text-lg text-slate-800 m-0">{{ viewingSunday.attendees.length }}</p>
+          </div>
+          <div class="border border-stone-200 rounded-md p-2">
+            <p class="text-xs text-stone-400 m-0">Morning</p>
+            <p class="text-lg text-slate-800 m-0">{{ viewingSunday.morning }}</p>
+          </div>
+          <div class="border border-stone-200 rounded-md p-2">
+            <p class="text-xs text-stone-400 m-0">Afternoon</p>
+            <p class="text-lg text-slate-800 m-0">{{ viewingSunday.afternoon }}</p>
+          </div>
+          <div class="border border-stone-200 rounded-md p-2">
+            <p class="text-xs text-stone-400 m-0">Total</p>
+            <p class="text-lg text-slate-800 m-0">{{ viewingSunday.total }}</p>
+          </div>
+        </div>
+
+        <div class="flex gap-2 mb-2.5">
+          <input v-model="sundaySearch" type="text" placeholder="Search by name" :class="[inputCls, 'flex-1']" />
+          <select v-model="sundayFilter" :class="inputCls">
+            <option value="ALL">All</option>
+            <option value="MORNING">Morning</option>
+            <option value="AFTERNOON">Afternoon</option>
+            <option value="BOTH">Both services</option>
+          </select>
+        </div>
+
+        <div class="border border-stone-200 rounded-lg max-h-96 overflow-y-auto">
+          <table class="w-full border-collapse text-sm">
+            <thead class="sticky top-0 bg-white">
+              <tr class="text-left text-xs text-stone-400">
+                <th class="p-2 font-medium">Name</th>
+                <th class="p-2 font-medium">Category</th>
+                <th class="p-2 font-medium text-center">Morning</th>
+                <th class="p-2 font-medium text-center">Afternoon</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="a in sundayAttendees" :key="a.id" class="border-t border-stone-100">
+                <td class="p-2">
+                  {{ a.first }} {{ a.last }}
+                  <span v-if="personTypeLabel(a)" class="ml-1 text-xs font-medium bg-orange-50 text-orange-700 rounded-full px-2 py-0.5">{{ personTypeLabel(a) }}</span>
+                </td>
+                <td class="p-2 text-stone-500">{{ CATEGORY_LABELS[a.category] || a.category }}</td>
+                <td class="p-2 text-center">
+                  <span v-if="a.morning" class="text-emerald-700 font-semibold">✓</span>
+                  <span v-else class="text-stone-300">—</span>
+                </td>
+                <td class="p-2 text-center">
+                  <span v-if="a.afternoon" class="text-emerald-700 font-semibold">✓</span>
+                  <span v-else class="text-stone-300">—</span>
+                </td>
+              </tr>
+              <tr v-if="sundayAttendees.length === 0">
+                <td colspan="4" class="text-center py-5 text-stone-400">No one matches.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-xs text-stone-400 mt-2 mb-0">Showing {{ sundayAttendees.length }} of {{ viewingSunday.attendees.length }} people</p>
       </div>
     </div>
   </div>

@@ -1,5 +1,5 @@
 import { prisma } from "~~/server/utils/prisma";
-import { PREACHER_OPTIONS } from "~~/server/utils/preacher";
+import { PREACHER_OPTIONS, normalizePreachers } from "~~/server/utils/preacher";
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event);
@@ -7,8 +7,8 @@ export default defineEventHandler(async (event) => {
   if (!body.name || !body.date || !body.type) {
     throw createError({ statusCode: 400, statusMessage: "Name, date, and type are required." });
   }
-  if (body.type === "BIBLE_STUDY" && body.session) {
-    throw createError({ statusCode: 400, statusMessage: "Bible study sessions aren't tagged morning/afternoon." });
+  if (body.type !== "SERVICE" && body.session) {
+    throw createError({ statusCode: 400, statusMessage: "Only Sunday Celebration is tagged morning/afternoon." });
   }
   if (body.type === "SERVICE" && !body.session) {
     throw createError({ statusCode: 400, statusMessage: "Services need a morning/afternoon session." });
@@ -23,10 +23,12 @@ export default defineEventHandler(async (event) => {
       date: new Date(body.date),
       type: body.type,
       session: body.type === "SERVICE" ? body.session : null,
-      preacherName: body.type === "SERVICE" ? (body.preacherName || null) : null,
+      // Preacher and key verses apply to every gathering except Bible Study.
+      preacherName: body.type !== "BIBLE_STUDY" ? (body.preacherName || null) : null,
       // SERVICE: sermon topic. BIBLE_STUDY: session title (e.g. the group).
       topic: body.topic || null,
-      keyVerses: body.type === "SERVICE" && Array.isArray(body.keyVerses) ? body.keyVerses : [],
+      keyVerses: body.type !== "BIBLE_STUDY" && Array.isArray(body.keyVerses) ? body.keyVerses : [],
+      preachers: body.type === "PRAYER_AND_FASTING" ? normalizePreachers(body.preachers) : [],
     },
   });
 });

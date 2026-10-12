@@ -30,9 +30,15 @@ enum LeaderStatus {
   ACTIVE
 }
 
+// SERVICE is the Sunday Celebration. The other non-Bible-Study gatherings
+// (midweek, prayer, kids) count toward the Empower report's Running Total.
 enum EventType {
   SERVICE
   BIBLE_STUDY
+  MIDWEEK_SERVICE
+  PRAYER_MEETING
+  PRAYER_AND_FASTING
+  KIDS_SERVICE
 }
 
 enum Session {
@@ -126,6 +132,9 @@ model Event {
   // SERVICE: sermon/topic. BIBLE_STUDY: the session title (e.g. the group).
   topic        String?
   keyVerses    String[]      @default([])
+  // PRAYER_AND_FASTING only: several preachers, each with their own topic and
+  // key verses — [{ name, topic, keyVerses: string[] }].
+  preachers    Json          @default("[]")
   attendances  Attendance[]
 
   @@index([date])

@@ -46,26 +46,35 @@ const leaderNames = computed(() => leaders.value
   .map((g) => g.name)
   .filter((name) => !LEGACY_GROUP_NAMES.includes(name)));
 
+// Other gatherings: everything that isn't Sunday Celebration or Bible Study.
+// They count toward the Empower report's Running Total.
+const GATHERING_TYPES = ["MIDWEEK_SERVICE", "PRAYER_MEETING", "PRAYER_AND_FASTING", "KIDS_SERVICE"];
+// Which events-list table an event belongs in.
+function sectionOf(type) {
+  return GATHERING_TYPES.includes(type) ? "GATHERING" : type;
+}
 const eventTypeFilter = ref("All");
 const sessionFilter = ref("All");
 // The session dropdown only shows for Sunday Celebration — reset it when it
 // hides so it can't keep filtering out of sight.
 watch(eventTypeFilter, (type) => { if (type !== "SERVICE") sessionFilter.value = "All"; });
 const filteredEvents = computed(() => events.value.filter((e) => {
-  if (eventTypeFilter.value !== "All" && e.type !== eventTypeFilter.value) return false;
+  if (eventTypeFilter.value !== "All" && sectionOf(e.type) !== eventTypeFilter.value) return false;
   // Morning/Afternoon only applies to services — don't let it hide Bible studies.
   if (e.type === "SERVICE" && sessionFilter.value !== "All" && e.session !== sessionFilter.value) return false;
   return true;
 }));
-// The events list is split into one table per event type. A section is
-// hidden only when the type filter picks the other type.
+// The events list is split into one table per section. A section is hidden
+// only when the type filter picks a different one.
 const eventSections = computed(() => [
   { type: "SERVICE", title: "Sunday Celebration" },
   { type: "BIBLE_STUDY", title: "Bible Study" },
+  { type: "GATHERING", title: "Other Gatherings" },
 ]
   .filter((sec) => eventTypeFilter.value === "All" || eventTypeFilter.value === sec.type)
+  .filter((sec) => sec.type !== "GATHERING" || filteredEvents.value.some((e) => sectionOf(e.type) === "GATHERING"))
   .map((sec) => {
-    const list = filteredEvents.value.filter((e) => e.type === sec.type);
+    const list = filteredEvents.value.filter((e) => sectionOf(e.type) === sec.type);
     const weeks = groupByWeek(list);
     return { ...sec, events: list, weeks, totalPresent: weeks.reduce((n, w) => n + w.totalPresent, 0) };
   }));
@@ -142,7 +151,14 @@ function formatFullName(member) {
 // POSTed at Save time, and only if at least one person is checked.
 // Where a walk-in first timer heard about Oaks.
 const WALK_IN_SOURCES = ["Facebook", "Instagram", "YouTube", "Other"];
-const EVENT_TYPE_LABELS = { SERVICE: "Sunday Celebration", BIBLE_STUDY: "Bible Study" };
+const EVENT_TYPE_LABELS = {
+  SERVICE: "Sunday Celebration",
+  BIBLE_STUDY: "Bible Study",
+  MIDWEEK_SERVICE: "Midweek Service",
+  PRAYER_MEETING: "Prayer Meeting",
+  PRAYER_AND_FASTING: "Prayer & Fasting",
+  KIDS_SERVICE: "Kids Service",
+};
 const PREACHER_OPTIONS = ["Ptr. Rex Chris Angeles", "Rev. Mac Ortiz"];
 
 function blankNewEvent() {
@@ -171,6 +187,19 @@ const saving = ref(false);
 const preacherName = ref("");
 const topic = ref("");
 const keyVersesInput = ref(""); // comma-separated in the UI, array in the API
+// PRAYER_AND_FASTING-only: several preachers, each with their own topic and
+// key verses (comma-separated in the UI).
+const blankPreacherRow = () => ({ name: "", topic: "", keyVerses: "" });
+const preacherRows = ref([blankPreacherRow()]);
+function addPreacherRow() {
+  preacherRows.value.push(blankPreacherRow());
+}
+function removePreacherRow(i) {
+  preacherRows.value.splice(i, 1);
+  if (preacherRows.value.length === 0) preacherRows.value.push(blankPreacherRow());
+}
+// Pastors first, then everyone on the roster — a Prayer & Fasting speaker can be anyone.
+const preacherNameOptions = computed(() => [...new Set([...PREACHER_OPTIONS, ...memberFullNames.value])]);
 // BIBLE_STUDY-only — member ids, one facilitator and one co-facilitator max
 const facilitatorId = ref(null);
 const coFacilitatorId = ref(null);
@@ -283,6 +312,7 @@ async function startDraft() {
   preacherName.value = "";
   topic.value = "";
   keyVersesInput.value = "";
+  preacherRows.value = [blankPreacherRow()];
   facilitatorId.value = null;
   coFacilitatorId.value = null;
   closeAddPerson();
@@ -310,6 +340,9 @@ async function openCheckIn(id) {
     preacherName.value = data.event.preacherName || "";
     topic.value = data.event.topic || "";
     keyVersesInput.value = (data.event.keyVerses || []).join(", ");
+    preacherRows.value = (data.event.preachers || []).length
+      ? data.event.preachers.map((p) => ({ name: p.name || "", topic: p.topic || "", keyVerses: (p.keyVerses || []).join(", ") }))
+      : [blankPreacherRow()];
     facilitatorId.value = data.members.find((m) => m.role === "FACILITATOR")?.id ?? null;
     coFacilitatorId.value = data.members.find((m) => m.role === "CO_FACILITATOR")?.id ?? null;
   } finally {
@@ -352,13 +385,17 @@ async function saveAttendance() {
   saving.value = true;
   try {
     const presentMemberIds = roster.value.filter((m) => m.present).map((m) => m.id);
-    const isService = activeEvent.value.type === "SERVICE";
+    // Preacher / topic / key verses: every gathering except Bible Study.
+    const isService = activeEvent.value.type !== "BIBLE_STUDY";
     const keyVerses = keyVersesInput.value.split(",").map((v) => v.trim()).filter(Boolean);
+    const isPrayerAndFasting = activeEvent.value.type === "PRAYER_AND_FASTING";
     const attendanceBody = {
       presentMemberIds,
-      ...(isService
-        ? { preacherName: preacherName.value || null, topic: topic.value || null, keyVerses }
-        : { facilitatorId: facilitatorId.value, coFacilitatorId: coFacilitatorId.value, topic: topic.value || null }),
+      ...(isPrayerAndFasting
+        ? { preachers: preacherRows.value }
+        : isService
+          ? { preacherName: preacherName.value || null, topic: topic.value || null, keyVerses }
+          : { facilitatorId: facilitatorId.value, coFacilitatorId: coFacilitatorId.value, topic: topic.value || null }),
     };
     if (checkInMode.value === "draft") {
       // Nobody checked on a brand-new draft means there's nothing to save —
@@ -445,7 +482,31 @@ function closeView() {
 
       <div v-if="loadingRoster" class="text-stone-400 text-sm">Loading roster…</div>
       <template v-else>
-        <div v-if="activeEvent.type === 'SERVICE'" class="flex gap-2.5 flex-wrap items-center mb-3.5 bg-white border border-stone-200 rounded-lg p-3.5">
+        <!-- Prayer & Fasting: several preachers, one row each -->
+        <div v-if="activeEvent.type === 'PRAYER_AND_FASTING'" class="flex flex-col gap-2.5 mb-3.5 bg-white border border-stone-200 rounded-lg p-3.5">
+          <datalist id="preacher-name-options">
+            <option v-for="name in preacherNameOptions" :key="name" :value="name" />
+          </datalist>
+          <div v-for="(row, i) in preacherRows" :key="i" class="flex gap-2.5 flex-wrap items-center">
+            <label class="text-xs text-stone-400 font-medium w-[70px]">Preacher {{ preacherRows.length > 1 ? i + 1 : "" }}</label>
+            <input v-model="row.name" list="preacher-name-options" placeholder="Search name…" :class="[inputCls, 'w-[220px]']" />
+            <label class="text-xs text-stone-400 font-medium">Sermon / Topic</label>
+            <input v-model="row.topic" type="text" placeholder="Title of sermon or topic" :class="[inputCls, 'flex-1 min-w-[180px]']" />
+            <label class="text-xs text-stone-400 font-medium">Key Verses</label>
+            <input v-model="row.keyVerses" type="text" placeholder="e.g. John 3:16, Romans 8:28" :class="[inputCls, 'flex-1 min-w-[180px]']" />
+            <button
+              type="button"
+              class="text-stone-400 hover:text-red-600 text-sm px-1"
+              title="Remove this preacher"
+              @click="removePreacherRow(i)"
+            >✕</button>
+          </div>
+          <button type="button" class="self-start text-sm text-slate-800 border border-stone-300 rounded-md px-3 py-1.5 hover:bg-stone-50" @click="addPreacherRow">
+            + Add preacher
+          </button>
+        </div>
+
+        <div v-else-if="activeEvent.type !== 'BIBLE_STUDY'" class="flex gap-2.5 flex-wrap items-center mb-3.5 bg-white border border-stone-200 rounded-lg p-3.5">
           <label class="text-xs text-stone-400 font-medium">Preacher</label>
           <select v-model="preacherName" :class="inputCls">
             <option value="">—</option>
@@ -624,8 +685,7 @@ function closeView() {
         <p class="text-xs text-stone-400 font-medium">New event</p>
         <div class="flex gap-2.5 flex-wrap items-center">
           <select v-model="newEvent.type" :class="inputCls">
-            <option value="SERVICE">Sunday Celebration</option>
-            <option value="BIBLE_STUDY">Bible Study</option>
+            <option v-for="(label, type) in EVENT_TYPE_LABELS" :key="type" :value="type">{{ label }}</option>
           </select>
           <input v-model="newEvent.date" type="date" :class="inputCls" />
           <select v-if="newEvent.type === 'SERVICE'" v-model="newEvent.session" :class="inputCls">
@@ -644,6 +704,7 @@ function closeView() {
           <option value="All">All events</option>
           <option value="SERVICE">Sunday Celebration</option>
           <option value="BIBLE_STUDY">Bible Study</option>
+          <option value="GATHERING">Other Gatherings</option>
         </select>
         <select v-if="eventTypeFilter === 'SERVICE'" v-model="sessionFilter" :class="inputCls">
           <option value="All">All sessions</option>
@@ -665,7 +726,7 @@ function closeView() {
             <thead>
               <tr class="text-left text-xs text-stone-400">
                 <th class="p-2.5 font-medium w-[18%]">Date</th>
-                <th class="p-2.5 font-medium">{{ sec.type === "SERVICE" ? "Session" : "Session / Group" }}</th>
+                <th class="p-2.5 font-medium">{{ sec.type === "SERVICE" ? "Session" : sec.type === "BIBLE_STUDY" ? "Session / Group" : "Gathering" }}</th>
                 <th class="p-2.5 font-medium w-[12%]">Present</th>
                 <th class="p-2.5 font-medium text-center w-[260px]">Action</th>
               </tr>
@@ -678,7 +739,11 @@ function closeView() {
               <tr v-for="e in w.events" :key="e.id" class="border-t border-stone-100">
                 <td class="p-2.5">{{ formatDate(e.date) }}</td>
                 <td class="p-2.5 text-stone-500">
-                  {{ e.type === "BIBLE_STUDY" ? (e.topic || "—") : (e.session === "AFTERNOON" ? "Afternoon" : "Morning") }}
+                  <template v-if="e.type === 'BIBLE_STUDY'">{{ e.topic || "—" }}</template>
+                  <template v-else-if="e.type === 'SERVICE'">{{ e.session === "AFTERNOON" ? "Afternoon" : "Morning" }}</template>
+                  <template v-else>
+                    <span class="text-slate-800">{{ EVENT_TYPE_LABELS[e.type] }}</span><template v-if="e.topic"> · {{ e.topic }}</template>
+                  </template>
                 </td>
                 <td class="p-2.5">{{ e.presentCount }}</td>
                 <td class="p-2.5 text-center whitespace-nowrap">
@@ -745,15 +810,28 @@ function closeView() {
               <dt class="text-stone-400 w-28 shrink-0">Session</dt>
               <dd>{{ viewDetail.event.session === "AFTERNOON" ? "Afternoon" : "Morning" }}</dd>
             </div>
-            <div v-if="viewDetail.event.type === 'SERVICE'" class="flex gap-2">
+            <div v-if="viewDetail.event.type === 'PRAYER_AND_FASTING'" class="flex gap-2">
+              <dt class="text-stone-400 w-28 shrink-0">Preachers</dt>
+              <dd class="m-0">
+                <template v-if="viewDetail.event.preachers?.length">
+                  <div v-for="(p, i) in viewDetail.event.preachers" :key="i" class="mb-1">
+                    <span class="font-medium">{{ p.name || "—" }}</span>
+                    <span v-if="p.topic" class="text-stone-500"> · {{ p.topic }}</span>
+                    <span v-if="p.keyVerses?.length" class="text-stone-400"> ({{ p.keyVerses.join(", ") }})</span>
+                  </div>
+                </template>
+                <template v-else>—</template>
+              </dd>
+            </div>
+            <div v-if="viewDetail.event.type !== 'BIBLE_STUDY' && viewDetail.event.type !== 'PRAYER_AND_FASTING'" class="flex gap-2">
               <dt class="text-stone-400 w-28 shrink-0">Preacher</dt>
               <dd>{{ viewDetail.event.preacherName || "—" }}</dd>
             </div>
-            <div v-if="viewDetail.event.type === 'SERVICE'" class="flex gap-2">
+            <div v-if="viewDetail.event.type !== 'BIBLE_STUDY' && viewDetail.event.type !== 'PRAYER_AND_FASTING'" class="flex gap-2">
               <dt class="text-stone-400 w-28 shrink-0">Sermon / Topic</dt>
               <dd>{{ viewDetail.event.topic || "—" }}</dd>
             </div>
-            <div v-if="viewDetail.event.type === 'SERVICE'" class="flex gap-2">
+            <div v-if="viewDetail.event.type !== 'BIBLE_STUDY' && viewDetail.event.type !== 'PRAYER_AND_FASTING'" class="flex gap-2">
               <dt class="text-stone-400 w-28 shrink-0">Key Verses</dt>
               <dd>{{ viewDetail.event.keyVerses?.length ? viewDetail.event.keyVerses.join(", ") : "—" }}</dd>
             </div>

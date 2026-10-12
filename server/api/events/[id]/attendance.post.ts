@@ -1,5 +1,5 @@
 import { prisma } from "~~/server/utils/prisma";
-import { PREACHER_OPTIONS } from "~~/server/utils/preacher";
+import { PREACHER_OPTIONS, normalizePreachers } from "~~/server/utils/preacher";
 import { getSessionRole } from "~~/server/utils/auth";
 
 // Body: { presentMemberIds: string[], facilitatorId?, coFacilitatorId?,
@@ -49,6 +49,11 @@ export default defineEventHandler(async (event) => {
       })),
     }),
   ]);
+
+  // Prayer & Fasting: several preachers, each with their own topic/verses.
+  if (body.preachers !== undefined) {
+    await prisma.event.update({ where: { id }, data: { preachers: normalizePreachers(body.preachers) } });
+  }
 
   if (body.preacherName !== undefined || body.topic !== undefined || body.keyVerses !== undefined) {
     await prisma.event.update({
