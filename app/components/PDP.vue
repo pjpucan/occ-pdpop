@@ -58,10 +58,19 @@ async function fetchMembers() {
 async function fetchLeaders() {
   leaders.value = await $fetch("/api/bible-study-groups");
 }
-onMounted(() => {
-  fetchMembers();
+// /?edit=<id> (the Edit link on the Attendance check-in list) opens that
+// person's edit form, searched down to just them.
+const route = useRoute();
+onMounted(async () => {
   fetchLeaders();
   window.addEventListener("click", closeLeaderTooltip);
+  await fetchMembers();
+  const editId = route.query.edit;
+  const target = typeof editId === "string" && members.value.find((m) => m.id === editId);
+  if (target && isAdmin.value) {
+    query.value = `${target.first} ${target.last}`;
+    startEdit(target);
+  }
 });
 onUnmounted(() => {
   window.removeEventListener("click", closeLeaderTooltip);
@@ -399,7 +408,7 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
             <option v-for="name in leaderNames" :key="name" :value="name">{{ name }}</option>
           </select>
         </div>
-        <template v-if="addForm.isVisitor && !isBibleStudyGuest(addForm)">
+        <template v-if="addForm.isVisitor">
           <div>
             <label class="block text-xs text-stone-400 font-medium mb-1.5">First timer?</label>
             <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
@@ -602,7 +611,7 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
                         <option v-for="name in leaderNames" :key="name" :value="name">{{ name }}</option>
                       </select>
                     </template>
-                    <template v-if="editForm.isVisitor && !isBibleStudyGuest(editForm)">
+                    <template v-if="editForm.isVisitor">
                       <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
                         <input type="checkbox" v-model="editForm.isFirstTimer" /> First Timer
                       </label>

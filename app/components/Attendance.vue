@@ -245,10 +245,16 @@ function buildAddPersonPayload(form) {
 }
 // One "Type" dropdown drives the two stored fields: Member = not a guest,
 // Visitor = attends services but isn't a member, Bible Study = Bible-study-only.
+// First timer applies to Visitors and Bible Study people — and, when adding
+// someone from a Bible Study check-in, to any type, so the Empower report can
+// count them as a Bible Study first timer.
+function canMarkFirstTimer(form) {
+  return activeEvent.value?.type === "BIBLE_STUDY" || form.isVisitor;
+}
 function applyPersonType(form) {
   form.isVisitor = form.personType !== "MEMBER";
   form.guestType = form.isVisitor ? form.personType : "MEMBER";
-  if (form.personType === "MEMBER") {
+  if (!canMarkFirstTimer(form)) {
     form.isFirstTimer = false;
     form.isWalkIn = false;
     form.walkInSource = "";
@@ -615,7 +621,7 @@ function closeView() {
                 <option v-for="name in leaderNames" :key="name" :value="name">{{ name }}</option>
               </select>
             </div>
-            <template v-if="addPersonForm.isVisitor && !isBibleStudyGuest(addPersonForm)">
+            <template v-if="canMarkFirstTimer(addPersonForm)">
               <div>
                 <label class="block text-xs text-stone-400 font-medium mb-1.5">First timer?</label>
                 <label class="flex items-center gap-1.5 text-sm border border-stone-300 rounded-md px-3 py-2 bg-white">
@@ -665,9 +671,12 @@ function closeView() {
                   {{ m.first }} {{ m.last }}
                   <span class="text-stone-400">— {{ CATEGORY_LABELS[m.category] }}</span>
                 </td>
+                <td v-if="isAdmin" class="p-2.5 text-right">
+                  <a :href="`/?edit=${m.id}`" target="_blank" :class="[btnEdit, 'inline-block no-underline']">Edit</a>
+                </td>
               </tr>
               <tr v-if="filteredRoster.length === 0">
-                <td colspan="2" class="text-center py-7 text-stone-400">No members match these filters.</td>
+                <td :colspan="isAdmin ? 3 : 2" class="text-center py-7 text-stone-400">No members match these filters.</td>
               </tr>
             </tbody>
           </table>
