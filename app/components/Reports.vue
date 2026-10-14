@@ -164,7 +164,7 @@ const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded 
           <thead>
             <tr class="text-left text-xs text-stone-400">
               <th class="p-2.5 font-medium">Name</th>
-              <th class="p-2.5 font-medium">Added</th>
+              <th class="p-2.5 font-medium">First came</th>
               <th class="p-2.5 font-medium">How they found us</th>
               <th class="p-2.5 font-medium">Invited by</th>
             </tr>

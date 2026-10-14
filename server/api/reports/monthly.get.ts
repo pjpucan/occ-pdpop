@@ -1,3 +1,4 @@
+import { firstTimersWithDates } from "~~/server/utils/firstTimers";
 import { prisma } from "~~/server/utils/prisma";
 import { monthRange } from "~~/server/utils/date";
 
@@ -19,11 +20,10 @@ export default defineEventHandler(async (event) => {
       where: { type: "BIBLE_STUDY", date: range },
       include: { attendances: { where: { present: true }, include: { member: true } } },
     }),
-    // First timers added this month (joinedAt is when they were added).
-    prisma.member.findMany({
-      where: { isFirstTimer: true, joinedAt: range },
-      orderBy: { joinedAt: "desc" },
-    }),
+    // First timers who first showed up this month.
+    firstTimersWithDates().then((rows) => rows
+      .filter((m) => m.firstSeen >= range.gte && m.firstSeen < range.lt)
+      .sort((a, b) => b.firstSeen.getTime() - a.firstSeen.getTime())),
   ]);
 
   // Tally attendances by member category, the same way for services and
@@ -119,7 +119,7 @@ export default defineEventHandler(async (event) => {
     id: m.id,
     first: m.firstName,
     last: m.lastName,
-    joinedAt: m.joinedAt,
+    joinedAt: m.firstSeen,
     guestType: m.isVisitor ? (m.guestType === "BIBLE_STUDY" ? "BIBLE_STUDY" : "VISITOR") : "MEMBER",
     source: m.isWalkIn ? "WALK_IN" : m.invitedByName ? "INVITED" : "UNKNOWN",
     invitedByName: m.invitedByName,

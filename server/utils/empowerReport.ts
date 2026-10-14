@@ -1,3 +1,4 @@
+import { firstTimersWithDates } from "~~/server/utils/firstTimers";
 import { prisma } from "~~/server/utils/prisma";
 
 // "Empower Global Statistical Report" — a standardized monthly report format
@@ -57,19 +58,16 @@ function buildPeriods(year: number, monthIndex: number) {
 //   - Base: Members (not Visitors / Bible Study-type) who aren't first timers.
 //     `Member.joinedAt` for the bulk-imported roster is just the import time,
 //     so the base counts regardless of its timestamp.
-//   - First timers of ANY type (Member, Visitor or Bible Study), from the day
-//     they were added (joinedAt).
+//   - First timers who are Members or Visitors, from the day they first
+//     showed up (see firstTimersWithDates). Bible Study-type people are never
+//     part of the population — they only count in the Bible Study columns.
 // "Total EPOP" is just the sum of these columns.
 async function populationAsOf(asOf: Date) {
-  const members = await prisma.member.findMany({
-    where: {
-      OR: [
-        { isVisitor: false, isFirstTimer: false },
-        { isFirstTimer: true, joinedAt: { lte: asOf } },
-      ],
-    },
-    select: { category: true },
-  });
+  const [base, firstTimers] = await Promise.all([
+    prisma.member.findMany({ where: { isVisitor: false, isFirstTimer: false }, select: { category: true } }),
+    firstTimersWithDates(),
+  ]);
+  const members = [...base, ...firstTimers.filter((f) => f.firstSeen <= asOf && !(f.isVisitor && f.guestType === "BIBLE_STUDY"))];
 
   const counts: Record<string, number> = Object.fromEntries(CATEGORY_COLUMNS.map((c) => [c, 0]));
   let unassigned = 0;
@@ -82,16 +80,14 @@ async function populationAsOf(asOf: Date) {
   return { counts, totalEpop, unassigned };
 }
 
+// A first timer counts in the week they first showed up. They count under
+// Bible Study when they're a Bible Study-type person, or when the first
+// gathering they were checked in to was a Bible Study (e.g. added from a Bible
+// Study check-in). Everyone else counts under "All Official Activities".
 async function firstTimerCounts(start: Date, end: Date) {
-  const [allOfficial, bibleStudy] = await Promise.all([
-    prisma.member.count({
-      where: { isFirstTimer: true, joinedAt: { gte: start, lte: end }, guestType: { not: "BIBLE_STUDY" } },
-    }),
-    prisma.member.count({
-      where: { isFirstTimer: true, joinedAt: { gte: start, lte: end }, guestType: "BIBLE_STUDY" },
-    }),
-  ]);
-  return { allOfficial, bibleStudy };
+  const people = (await firstTimersWithDates()).filter((f) => f.firstSeen >= start && f.firstSeen <= end);
+  const bibleStudy = people.filter((p) => p.guestType === "BIBLE_STUDY" || p.firstEventType === "BIBLE_STUDY").length;
+  return { allOfficial: people.length - bibleStudy, bibleStudy };
 }
 
 async function bibleStudyStats(start: Date, end: Date) {
