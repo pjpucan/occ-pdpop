@@ -49,7 +49,8 @@ formatted Excel file, following the Empower guidelines:
 - **Running Total**: everyone who attended the church's gatherings that week
   (Sunday Celebration, Midweek, Prayer Meeting, Prayer & Fasting, Kids Service).
 - **EPOP**: starts from the previous month's ending EPOP and grows each week by
-  that week's first timers (general and Bible Study). Total EPOP is the sum of
+  that week's first timers. Bible Study-type people aren't part of the
+  population, so they never add to EPOP. Total EPOP is the sum of
   all category columns, including Solo Parent.
 - **Previous month ending** (BASE row): the previous month's latest EPOP,
   Running Total, Bible Studies conducted and Bible Study attendees.
