@@ -184,7 +184,21 @@ const category = ref("All");
 const saving = ref(false);
 
 // SERVICE-only
-const preacherName = ref("");
+// Preacher dropdown: one of PREACHER_OPTIONS, or "GUEST" to type in a guest
+// preacher's name. `preacherName` is what gets saved.
+const GUEST_PREACHER = "GUEST";
+const preacherChoice = ref("");
+const guestPreacher = ref("");
+const preacherName = computed(() => (preacherChoice.value === GUEST_PREACHER ? guestPreacher.value.trim() : preacherChoice.value));
+function setPreacherFromSaved(name) {
+  if (!name || PREACHER_OPTIONS.includes(name)) {
+    preacherChoice.value = name || "";
+    guestPreacher.value = "";
+  } else {
+    preacherChoice.value = GUEST_PREACHER;
+    guestPreacher.value = name;
+  }
+}
 const topic = ref("");
 const keyVersesInput = ref(""); // comma-separated in the UI, array in the API
 // PRAYER_AND_FASTING-only: several preachers, each with their own topic and
@@ -299,9 +313,6 @@ const filteredRoster = computed(() => roster.value.filter((m) => {
 
 const presentCount = computed(() => roster.value.filter((m) => m.present).length);
 
-// Facilitator/Co-Facilitator are picked from members serving a ministry,
-// not the whole 138-person roster.
-const ministryMembers = computed(() => roster.value.filter((m) => m.ministry));
 
 async function startDraft() {
   startingDraft.value = true;
@@ -315,12 +326,14 @@ async function startDraft() {
   };
   query.value = "";
   category.value = "All";
-  preacherName.value = "";
+  setPreacherFromSaved("");
   topic.value = "";
   keyVersesInput.value = "";
   preacherRows.value = [blankPreacherRow()];
   facilitatorId.value = null;
   coFacilitatorId.value = null;
+  facilitatorText.value = "";
+  coFacilitatorText.value = "";
   closeAddPerson();
   loadingRoster.value = true;
   try {
@@ -343,7 +356,7 @@ async function openCheckIn(id) {
     const data = await $fetch(`/api/events/${id}/attendance`);
     activeEvent.value = data.event;
     roster.value = data.members;
-    preacherName.value = data.event.preacherName || "";
+    setPreacherFromSaved(data.event.preacherName);
     topic.value = data.event.topic || "";
     keyVersesInput.value = (data.event.keyVerses || []).join(", ");
     preacherRows.value = (data.event.preachers || []).length
@@ -351,6 +364,8 @@ async function openCheckIn(id) {
       : [blankPreacherRow()];
     facilitatorId.value = data.members.find((m) => m.role === "FACILITATOR")?.id ?? null;
     coFacilitatorId.value = data.members.find((m) => m.role === "CO_FACILITATOR")?.id ?? null;
+    facilitatorText.value = nameOf(facilitatorId.value);
+    coFacilitatorText.value = nameOf(coFacilitatorId.value);
   } finally {
     loadingRoster.value = false;
   }
@@ -362,6 +377,8 @@ function closeCheckIn() {
   roster.value = [];
   facilitatorId.value = null;
   coFacilitatorId.value = null;
+  facilitatorText.value = "";
+  coFacilitatorText.value = "";
   closeAddPerson();
 }
 
@@ -377,6 +394,34 @@ function setCoFacilitator(id) {
   const m = roster.value.find((r) => r.id === id);
   if (m) m.present = true;
 }
+
+// Facilitator / Co-Facilitator are typed in (with name suggestions from the
+// roster) and matched to a person by full name. The typed text is kept on its
+// own so a half-typed name isn't wiped while typing.
+const facilitatorText = ref("");
+const coFacilitatorText = ref("");
+function nameOf(id) {
+  const m = roster.value.find((r) => r.id === id);
+  return m ? `${m.first} ${m.last}` : "";
+}
+function findByName(text) {
+  const t = text.trim().toLowerCase();
+  if (!t) return null;
+  return roster.value.find((r) => `${r.first} ${r.last}`.toLowerCase() === t) ?? null;
+}
+// Picking the same person for both roles moves them; clear the other box.
+function onFacilitatorInput(text) {
+  facilitatorText.value = text;
+  setFacilitator(findByName(text)?.id ?? null);
+  if (!coFacilitatorId.value && findByName(coFacilitatorText.value)) coFacilitatorText.value = "";
+}
+function onCoFacilitatorInput(text) {
+  coFacilitatorText.value = text;
+  setCoFacilitator(findByName(text)?.id ?? null);
+  if (!facilitatorId.value && findByName(facilitatorText.value)) facilitatorText.value = "";
+}
+const facilitatorUnmatched = computed(() => !!facilitatorText.value.trim() && !facilitatorId.value);
+const coFacilitatorUnmatched = computed(() => !!coFacilitatorText.value.trim() && !coFacilitatorId.value);
 
 function selectAllVisible() {
   const visibleIds = new Set(filteredRoster.value.map((m) => m.id));
@@ -514,10 +559,19 @@ function closeView() {
 
         <div v-else-if="activeEvent.type !== 'BIBLE_STUDY'" class="flex gap-2.5 flex-wrap items-center mb-3.5 bg-white border border-stone-200 rounded-lg p-3.5">
           <label class="text-xs text-stone-400 font-medium">Preacher</label>
-          <select v-model="preacherName" :class="inputCls">
+          <select v-model="preacherChoice" :class="inputCls">
             <option value="">—</option>
             <option v-for="p in PREACHER_OPTIONS" :key="p" :value="p">{{ p }}</option>
+            <option :value="GUEST_PREACHER">Guest preacher…</option>
           </select>
+          <input
+            v-if="preacherChoice === GUEST_PREACHER"
+            v-model="guestPreacher"
+            type="text"
+            maxlength="100"
+            placeholder="Guest preacher's name"
+            :class="[inputCls, 'min-w-[200px]']"
+          />
           <label class="text-xs text-stone-400 font-medium">Sermon / Topic</label>
           <input v-model="topic" type="text" placeholder="Title of sermon or topic" :class="[inputCls, 'flex-1 min-w-[200px]']" />
           <label class="text-xs text-stone-400 font-medium">Key Verses</label>
@@ -526,18 +580,26 @@ function closeView() {
 
         <div v-if="activeEvent.type === 'BIBLE_STUDY'" class="flex gap-2.5 flex-wrap items-center mb-3.5 bg-white border border-stone-200 rounded-lg p-3.5">
           <label class="text-xs text-stone-400 font-medium">Facilitator</label>
-          <select :value="facilitatorId" :class="inputCls" @change="setFacilitator($event.target.value)">
-            <option value="">—</option>
-            <option v-for="m in ministryMembers" :key="m.id" :value="m.id">{{ m.first }} {{ m.last }} — {{ m.ministry }}</option>
-          </select>
+          <input
+            :value="facilitatorText"
+            list="attendance-member-names"
+            placeholder="Type a name…"
+            :class="[inputCls, 'min-w-[200px]', facilitatorUnmatched && 'border-orange-400']"
+            @input="onFacilitatorInput($event.target.value)"
+          />
           <label class="text-xs text-stone-400 font-medium">Co-Facilitator</label>
-          <select :value="coFacilitatorId" :class="inputCls" @change="setCoFacilitator($event.target.value)">
-            <option value="">—</option>
-            <option v-for="m in ministryMembers" :key="m.id" :value="m.id">{{ m.first }} {{ m.last }} — {{ m.ministry }}</option>
-          </select>
+          <input
+            :value="coFacilitatorText"
+            list="attendance-member-names"
+            placeholder="Type a name…"
+            :class="[inputCls, 'min-w-[200px]', coFacilitatorUnmatched && 'border-orange-400']"
+            @input="onCoFacilitatorInput($event.target.value)"
+          />
           <label class="text-xs text-stone-400 font-medium">Session</label>
           <input v-model="topic" type="text" placeholder="Group or session title" :class="[inputCls, 'flex-1 min-w-[200px]']" />
-          <p v-if="ministryMembers.length === 0" class="text-xs text-orange-700 m-0">No members have a Ministry assigned yet.</p>
+          <p v-if="facilitatorUnmatched || coFacilitatorUnmatched" class="w-full text-xs text-orange-700 m-0">
+            Pick a name from the suggestions. Someone new? Add them with "+ Add new person" first.
+          </p>
         </div>
 
         <div class="flex gap-2.5 flex-wrap items-center mb-3.5">
