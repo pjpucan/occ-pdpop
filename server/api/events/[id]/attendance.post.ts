@@ -1,5 +1,5 @@
 import { prisma } from "~~/server/utils/prisma";
-import { PREACHER_OPTIONS, normalizePreachers } from "~~/server/utils/preacher";
+import { cleanPreacherName, normalizePreachers } from "~~/server/utils/preacher";
 import { getSessionRole } from "~~/server/utils/auth";
 
 // Body: { presentMemberIds: string[], facilitatorId?, coFacilitatorId?,
@@ -18,9 +18,7 @@ export default defineEventHandler(async (event) => {
   if (!Array.isArray(body.presentMemberIds)) {
     throw createError({ statusCode: 400, statusMessage: "presentMemberIds must be an array." });
   }
-  if (body.preacherName && !PREACHER_OPTIONS.includes(body.preacherName)) {
-    throw createError({ statusCode: 400, statusMessage: "Unrecognized preacher." });
-  }
+  const preacherName = cleanPreacherName(body.preacherName);
 
   // Non-admins can take attendance for the first time, but not edit an
   // event that already has recorded attendance.
@@ -59,7 +57,7 @@ export default defineEventHandler(async (event) => {
     await prisma.event.update({
       where: { id },
       data: {
-        preacherName: body.preacherName || null,
+        preacherName,
         topic: body.topic || null,
         keyVerses: Array.isArray(body.keyVerses) ? body.keyVerses : [],
       },

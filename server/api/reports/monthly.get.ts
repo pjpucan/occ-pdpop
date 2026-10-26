@@ -124,6 +124,10 @@ export default defineEventHandler(async (event) => {
     source: m.isWalkIn ? "WALK_IN" : m.invitedByName ? "INVITED" : "UNKNOWN",
     invitedByName: m.invitedByName,
     walkInSource: m.isWalkIn ? m.walkInSource : null,
+    // The gathering they first came to: their first check-in, or Bible Study
+    // for a Bible Study-type person who hasn't been checked in yet.
+    firstEventType: m.firstEventType ?? (m.isVisitor && m.guestType === "BIBLE_STUDY" ? "BIBLE_STUDY" : null),
+    firstEventSession: m.firstEventSession,
   }));
   // Walk-ins by where they heard about Oaks (Facebook, Instagram, …).
   const walkInSources: Record<string, number> = {};

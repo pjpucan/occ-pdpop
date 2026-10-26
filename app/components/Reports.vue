@@ -11,6 +11,14 @@ const CATEGORY_LABELS = {
   LEGACY: "Legacy", UNASSIGNED: "Unassigned",
 };
 
+// The gathering a first timer first came to (Bible Study has its own badge).
+const FIRST_EVENT_LABELS = {
+  SERVICE: "Sunday Celebration",
+  MIDWEEK_SERVICE: "Midweek Service",
+  PRAYER_MEETING: "Prayer Meeting",
+  PRAYER_AND_FASTING: "Prayer & Fasting",
+  KIDS_SERVICE: "Kids Service",
+};
 const inputCls = "border border-stone-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-800/20";
 
 const month = ref(new Date().toISOString().slice(0, 7));
@@ -165,6 +173,7 @@ const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded 
             <tr class="text-left text-xs text-stone-400">
               <th class="p-2.5 font-medium">Name</th>
               <th class="p-2.5 font-medium">First came</th>
+              <th class="p-2.5 font-medium">Came to</th>
               <th class="p-2.5 font-medium">How they found us</th>
               <th class="p-2.5 font-medium">Invited by</th>
             </tr>
@@ -173,6 +182,13 @@ const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded 
             <tr v-for="f in report.firstTimers.list" :key="f.id" class="border-t border-stone-100">
               <td class="p-2.5">{{ f.first }} {{ f.last }}</td>
               <td class="p-2.5">{{ new Date(f.joinedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) }}</td>
+              <td class="p-2.5">
+                <span v-if="f.firstEventType === 'BIBLE_STUDY'" class="text-xs font-medium bg-sky-50 text-sky-700 rounded-full px-2 py-0.5">Bible Study</span>
+                <span v-else-if="f.firstEventType" class="text-xs font-medium bg-slate-100 text-slate-700 rounded-full px-2 py-0.5">
+                  {{ FIRST_EVENT_LABELS[f.firstEventType] }}<template v-if="f.firstEventSession"> · {{ f.firstEventSession === "MORNING" ? "Morning" : "Afternoon" }}</template>
+                </span>
+                <span v-else class="text-stone-300">Not checked in</span>
+              </td>
               <td class="p-2.5">
                 <span v-if="f.source === 'WALK_IN'" class="text-xs font-medium bg-orange-50 text-orange-700 rounded-full px-2 py-0.5">
                   Walk-in<template v-if="f.walkInSource"> · {{ f.walkInSource }}</template>
@@ -186,7 +202,7 @@ const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded 
               </td>
             </tr>
             <tr v-if="report.firstTimers.list.length === 0">
-              <td colspan="4" class="text-center py-7 text-stone-400">No first timers added this month.</td>
+              <td colspan="5" class="text-center py-7 text-stone-400">No first timers added this month.</td>
             </tr>
           </tbody>
         </table>
