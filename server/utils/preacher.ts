@@ -1,5 +1,14 @@
-// Preacher isn't tracked as a Member — it's always one of these two people.
+// Preacher isn't tracked as a Member — usually one of these two people, or a
+// guest preacher whose name is typed in.
 export const PREACHER_OPTIONS = ["Ptr. Rex Chris Angeles", "Rev. Mac Ortiz"];
+
+export function cleanPreacherName(input: unknown) {
+  const name = typeof input === "string" ? input.trim() : "";
+  if (name.length > 100) {
+    throw createError({ statusCode: 400, statusMessage: "Preacher name is too long." });
+  }
+  return name || null;
+}
 
 // Prayer & Fasting can have several preachers. Keep only rows with something
 // filled in, and store key verses as a trimmed list.
