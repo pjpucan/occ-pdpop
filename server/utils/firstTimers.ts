@@ -10,7 +10,7 @@ export async function firstTimersWithDates() {
     include: {
       attendances: {
         where: { present: true },
-        select: { event: { select: { type: true, date: true } } },
+        select: { event: { select: { type: true, date: true, session: true } } },
         orderBy: { event: { date: "asc" } },
         take: 1,
       },
@@ -19,6 +19,6 @@ export async function firstTimersWithDates() {
   return rows.map(({ attendances, ...m }) => {
     const first = attendances[0]?.event;
     const firstSeen = first && first.date < m.joinedAt ? first.date : m.joinedAt;
-    return { ...m, firstSeen, firstEventType: first?.type ?? null };
+    return { ...m, firstSeen, firstEventType: first?.type ?? null, firstEventSession: first?.session ?? null };
   });
 }
