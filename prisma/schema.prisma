@@ -31,7 +31,7 @@ enum LeaderStatus {
 }
 
 // SERVICE is the Sunday Celebration. The other non-Bible-Study gatherings
-// (midweek, prayer, kids) count toward the Empower report's Running Total.
+// (midweek, prayer, kids, youth) count toward the Empower report's Running Total.
 enum EventType {
   SERVICE
   BIBLE_STUDY
@@ -39,6 +39,7 @@ enum EventType {
   PRAYER_MEETING
   PRAYER_AND_FASTING
   KIDS_SERVICE
+  YOUTH_SERVICE
 }
 
 enum Session {
@@ -52,11 +53,12 @@ enum BibleStudyRole {
 }
 
 // Only meaningful when isVisitor is true — is this guest visiting the
-// main congregation, or only attending a Bible study?
+// main congregation, or only attending a Bible study or the Youth Service?
 enum GuestType {
   MEMBER
   BIBLE_STUDY
   VISITOR
+  YOUTH_SERVICE
 }
 
 model Member {

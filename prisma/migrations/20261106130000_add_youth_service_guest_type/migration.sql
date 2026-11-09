@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "GuestType" ADD VALUE 'YOUTH_SERVICE';

@@ -114,6 +114,7 @@ const filtered = computed(() => members.value.filter((m) => {
   if (guestFilter.value === "Member" && (m.isVisitor || m.isInactive)) return false;
   if (guestFilter.value === "Inactive" && !m.isInactive) return false;
   if (guestFilter.value === "Bible Study" && !(m.isVisitor && m.guestType === "BIBLE_STUDY")) return false;
+  if (guestFilter.value === "Youth Service" && personTypeOf(m) !== "YOUTH_SERVICE") return false;
   return true;
 }));
 
@@ -140,7 +141,8 @@ const stats = computed(() => ({
   // Members only (the population) — Bible Study-type people are counted in
   // the Visitors card, not here.
   membersInGroup: members.value.filter((m) => !m.isVisitor && !m.isInactive && m.bibleStudyGroup).length,
-  visitors: members.value.filter((m) => personTypeOf(m) === "VISITOR").length,
+  // Youth Service-only guests count as Visitors here.
+  visitors: members.value.filter((m) => ["VISITOR", "YOUTH_SERVICE"].includes(personTypeOf(m))).length,
   bibleStudyGuests: members.value.filter((m) => personTypeOf(m) === "BIBLE_STUDY").length,
 }));
 
@@ -194,10 +196,11 @@ function buildPayload(form) {
 // Visitor = attends services but isn't a member, Bible Study = Bible-study-only.
 // Where a walk-in first timer heard about Oaks.
 const WALK_IN_SOURCES = ["Facebook", "Instagram", "YouTube", "Other"];
-const PERSON_TYPE_LABELS = { MEMBER: "Member", VISITOR: "Visitor", BIBLE_STUDY: "Bible Study" };
+const PERSON_TYPE_LABELS = { MEMBER: "Member", VISITOR: "Visitor", BIBLE_STUDY: "Bible Study", YOUTH_SERVICE: "Youth Service" };
 function personTypeOf(m) {
   if (!m.isVisitor) return "MEMBER";
-  return m.guestType === "BIBLE_STUDY" ? "BIBLE_STUDY" : "VISITOR";
+  if (m.guestType === "BIBLE_STUDY" || m.guestType === "YOUTH_SERVICE") return m.guestType;
+  return "VISITOR";
 }
 function applyPersonType(form) {
   form.isVisitor = form.personType !== "MEMBER";
@@ -398,6 +401,7 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
             <option value="MEMBER">Member</option>
             <option value="VISITOR">Visitor</option>
             <option value="BIBLE_STUDY">Bible Study</option>
+            <option value="YOUTH_SERVICE">Youth Service</option>
           </select>
         </div>
         <div v-if="isBibleStudyGuest(addForm)">
@@ -497,6 +501,7 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
         <option value="Visitor">Visitor</option>
         <option value="Member">Member</option>
         <option value="Bible Study">Bible Study</option>
+        <option value="Youth Service">Youth Service</option>
         <option value="Inactive">Inactive</option>
       </select>
       <span class="ml-auto flex items-center text-sm text-stone-400 flex flex-col w-[135px]">
@@ -552,6 +557,7 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
                 <span class="inline-flex items-center gap-1">
                   <span v-if="personTypeOf(m) === 'VISITOR'" class="text-xs font-medium bg-orange-50 text-orange-700 rounded-full px-2 py-0.5">Visitor</span>
                   <span v-else-if="personTypeOf(m) === 'BIBLE_STUDY'" class="text-xs font-medium bg-sky-50 text-sky-700 rounded-full px-2 py-0.5">Bible Study</span>
+                  <span v-else-if="personTypeOf(m) === 'YOUTH_SERVICE'" class="text-xs font-medium bg-violet-50 text-violet-700 rounded-full px-2 py-0.5">Youth Service</span>
                   <span v-else-if="m.isInactive" class="text-xs font-medium bg-stone-100 text-stone-500 rounded-full px-2 py-0.5" :title="inactiveTitle(m)">Inactive</span>
                   <span v-else class="text-stone-300">Member</span>
                 </span>
@@ -602,6 +608,7 @@ const btnDelete = "text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 p
                       <option value="MEMBER">Member</option>
                       <option value="VISITOR">Visitor</option>
                       <option value="BIBLE_STUDY">Bible Study</option>
+                      <option value="YOUTH_SERVICE">Youth Service</option>
                     </select>
                     <template v-if="isBibleStudyGuest(editForm)">
                       <label class="text-xs text-stone-400 font-medium">Leader</label>

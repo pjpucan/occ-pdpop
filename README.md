@@ -28,7 +28,7 @@ checked in to one of those services, or when an admin re-enables them.
 ### Attendance
 Create events and check people in: Sunday Celebration (morning/afternoon),
 Bible Study, and other gatherings (Midweek Service, Prayer Meeting, Prayer &
-Fasting, Kids Service). Services and gatherings record the preacher, topic and
+Fasting, Kids Service, Youth Service). Services and gatherings record the preacher, topic and
 key verses. Bible studies record the facilitator, co-facilitator and a session
 or group title. Events are listed in separate Sunday Celebration, Bible Study
 and Other Gatherings tables, grouped by week.
@@ -47,13 +47,17 @@ Builds the monthly Empower Global Statistical Report and downloads it as a
 formatted Excel file, following the Empower guidelines:
 
 - **Running Total**: everyone who attended the church's gatherings that week
-  (Sunday Celebration, Midweek, Prayer Meeting, Prayer & Fasting, Kids Service).
+  (Sunday Celebration, Midweek, Prayer Meeting, Prayer & Fasting, Kids Service, Youth Service).
 - **EPOP**: starts from the previous month's ending EPOP and grows each week by
   that week's first timers. Bible Study-type people aren't part of the
   population, so they never add to EPOP. Total EPOP is the sum of
   all category columns, including Solo Parent.
 - **Previous month ending** (BASE row): the previous month's latest EPOP,
   Running Total, Bible Studies conducted and Bible Study attendees.
+
+The report can also fill a **Google Sheet** automatically: the Apps Script in
+`apps-script/EmpowerSync.gs` pulls the previous month's report on the 3rd of
+each month into a new tab, using a token-protected feed (`REPORT_FEED_TOKEN`).
 
 ## Who can use it
 
