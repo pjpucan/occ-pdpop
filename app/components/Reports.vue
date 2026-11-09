@@ -18,6 +18,7 @@ const FIRST_EVENT_LABELS = {
   PRAYER_MEETING: "Prayer Meeting",
   PRAYER_AND_FASTING: "Prayer & Fasting",
   KIDS_SERVICE: "Kids Service",
+  YOUTH_SERVICE: "Youth Service",
 };
 const inputCls = "border border-stone-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-800/20";
 
@@ -93,7 +94,9 @@ function closeSunday() {
 }
 function personTypeLabel(a) {
   if (!a.isVisitor) return null;
-  return a.guestType === "BIBLE_STUDY" ? "Bible Study" : "Visitor";
+  if (a.guestType === "BIBLE_STUDY") return "Bible Study";
+  if (a.guestType === "YOUTH_SERVICE") return "Youth Service";
+  return "Visitor";
 }
 
 const btnView = "text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded px-2 py-1";

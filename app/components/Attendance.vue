@@ -48,7 +48,7 @@ const leaderNames = computed(() => leaders.value
 
 // Other gatherings: everything that isn't Sunday Celebration or Bible Study.
 // They count toward the Empower report's Running Total.
-const GATHERING_TYPES = ["MIDWEEK_SERVICE", "PRAYER_MEETING", "PRAYER_AND_FASTING", "KIDS_SERVICE"];
+const GATHERING_TYPES = ["MIDWEEK_SERVICE", "PRAYER_MEETING", "PRAYER_AND_FASTING", "KIDS_SERVICE", "YOUTH_SERVICE"];
 // Which events-list table an event belongs in.
 function sectionOf(type) {
   return GATHERING_TYPES.includes(type) ? "GATHERING" : type;
@@ -158,6 +158,7 @@ const EVENT_TYPE_LABELS = {
   PRAYER_MEETING: "Prayer Meeting",
   PRAYER_AND_FASTING: "Prayer & Fasting",
   KIDS_SERVICE: "Kids Service",
+  YOUTH_SERVICE: "Youth Service",
 };
 const PREACHER_OPTIONS = ["Ptr. Rex Chris Angeles", "Rev. Mac Ortiz"];
 
@@ -258,7 +259,8 @@ function buildAddPersonPayload(form) {
   };
 }
 // One "Type" dropdown drives the two stored fields: Member = not a guest,
-// Visitor = attends services but isn't a member, Bible Study = Bible-study-only.
+// Visitor = attends services but isn't a member, Bible Study = Bible-study-only,
+// Youth Service = Youth-Service-only (otherwise treated like a Visitor).
 // First timer applies to Visitors and Bible Study people — and, when adding
 // someone from a Bible Study check-in, to any type, so the Empower report can
 // count them as a Bible Study first timer.
@@ -673,6 +675,7 @@ function closeView() {
                 <option value="MEMBER">Member</option>
                 <option value="VISITOR">Visitor</option>
                 <option value="BIBLE_STUDY">Bible Study</option>
+                <option value="YOUTH_SERVICE">Youth Service</option>
               </select>
             </div>
             <div v-if="isBibleStudyGuest(addPersonForm)">

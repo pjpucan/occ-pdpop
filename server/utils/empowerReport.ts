@@ -139,7 +139,7 @@ export function weeklyBibleStudyAttendees(checkIns: { memberId: string; role: st
 
 // Running Total (per the Empower guidelines): the combined attendance at the
 // church's gatherings in that cut-off period — Sunday Worship, Midweek,
-// Prayer Meeting, Prayer & Fasting, Kids service — i.e. every event that isn't
+// Prayer Meeting, Prayer & Fasting, Kids service, Youth service — i.e. every event that isn't
 // a Bible Study. It's every check-in in the period: someone at both the
 // morning and afternoon service counts twice, the same way the Attendance
 // page adds them up.

@@ -6,6 +6,8 @@ export default defineEventHandler((event) => {
   const path = event.path || "";
   if (!path.startsWith("/api/")) return;
   if (path.startsWith("/api/auth/")) return;
+  // The report feed checks its own bearer token (server/api/feed/).
+  if (path.startsWith("/api/feed/")) return;
 
   if (!getSessionRole(event)) {
     throw createError({ statusCode: 401, statusMessage: "Please log in." });
