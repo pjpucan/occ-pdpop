@@ -120,7 +120,7 @@ export default defineEventHandler(async (event) => {
     first: m.firstName,
     last: m.lastName,
     joinedAt: m.firstSeen,
-    guestType: m.isVisitor ? (m.guestType === "BIBLE_STUDY" ? "BIBLE_STUDY" : "VISITOR") : "MEMBER",
+    guestType: m.isVisitor ? (m.guestType === "BIBLE_STUDY" || m.guestType === "YOUTH_SERVICE" ? m.guestType : "VISITOR") : "MEMBER",
     source: m.isWalkIn ? "WALK_IN" : m.invitedByName ? "INVITED" : "UNKNOWN",
     invitedByName: m.invitedByName,
     walkInSource: m.isWalkIn ? m.walkInSource : null,

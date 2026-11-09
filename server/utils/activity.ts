@@ -2,7 +2,7 @@ import { prisma } from "~~/server/utils/prisma";
 
 // A member is "Inactive" once they've gone 3 months without attending a
 // single service — Sunday Celebration, Midweek Service, Prayer Meeting or
-// Prayer & Fasting (ACTIVE_EVENT_TYPES; Kids Service and Bible Study don't
+// Prayer & Fasting (ACTIVE_EVENT_TYPES; Kids Service, Youth Service and Bible Study don't
 // count). Nothing is deleted or stored as a status — it's worked out on every
 // read, so attending one of those again makes them active automatically.
 // Guests (Visitors, Bible Study-type people) are never flagged.
